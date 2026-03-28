@@ -1,0 +1,1578 @@
+"use client"
+
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useDeferredValue, useEffect, useState } from "react"
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  BadgeCheck,
+  Camera,
+  CloudUpload,
+  CreditCard,
+  Database,
+  FileText,
+  HeartHandshake,
+  ImageIcon,
+  LoaderCircle,
+  LockKeyhole,
+  LogOut,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react"
+
+import { useAuth } from "@/components/auth-provider"
+import { AstrologyBackground } from "@/components/astrology-background"
+import { ProfilePhotoCard } from "@/components/profile-photo-card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  districtOptions,
+  educationOptions,
+  genderOptions,
+  initialProfileDraft,
+  lagnaOptions,
+  languageOptions,
+  nakathOptions,
+  professionOptions,
+  religionOptions,
+  siblingOptions,
+  familySetupOptions,
+  spouseCareerOptions,
+  PROFILE_DRAFT_STORAGE_KEY,
+  ageFromBirthDate,
+  birthDateFromAge,
+  getVerificationStatus,
+  isFullyVerified,
+  mergeProfileDraft,
+  type BiodataShareMode,
+  type ContactVisibility,
+  type PhotoVisibility,
+  type ProfileDraft,
+  syncVerificationState,
+} from "@acme/core"
+import {
+  isFirebaseConfigured,
+  loadProfileDraftFromBackend,
+  saveProfileDraftToBackend,
+} from "@/lib/profile-store"
+import { useBiodataStore } from "@/lib/use-biodata-store"
+import { uploadProfileAsset, type ProfileAssetKind } from "@/lib/storage-store"
+import { cn } from "@/lib/utils"
+
+const quickSignals = [
+  {
+    icon: FileText,
+    title: "PDF-first structure",
+    body: "Start with a biodata people can actually share on WhatsApp or with parents.",
+  },
+  {
+    icon: Sparkles,
+    title: "Porondam-ready details",
+    body: "Nakath, lagna, and birth details are captured in the same flow.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Trust settings built in",
+    body: "Privacy and verification live inside the profile model from day one.",
+  },
+]
+
+const photoVisibilityOptions: Array<{
+  value: PhotoVisibility
+  label: string
+  description: string
+}> = [
+  {
+    value: "blurred",
+    label: "Blurred until mutual interest",
+    description: "Best default for launch. Faces stay soft until both sides agree.",
+  },
+  {
+    value: "mutual",
+    label: "Unlock on mutual interest",
+    description: "Full photos open only after both sides respond positively.",
+  },
+  {
+    value: "family",
+    label: "Family reviewed first",
+    description: "Share the biodata before photos become visible.",
+  },
+]
+
+const contactVisibilityOptions: Array<{
+  value: ContactVisibility
+  label: string
+  description: string
+}> = [
+  {
+    value: "hidden",
+    label: "Hide contact details",
+    description: "Phone number stays fully hidden in the first stage.",
+  },
+  {
+    value: "mutual",
+    label: "Release after mutual interest",
+    description: "Preferred for direct intros with strong privacy control.",
+  },
+  {
+    value: "family-request",
+    label: "Share through family request",
+    description: "Useful when families guide the first conversation.",
+  },
+]
+
+const biodataShareOptions: Array<{
+  value: BiodataShareMode
+  label: string
+  description: string
+}> = [
+  {
+    value: "pdf",
+    label: "Formal PDF",
+    description: "A polished biodata designed for respectful sharing.",
+  },
+  {
+    value: "whatsapp",
+    label: "WhatsApp first",
+    description: "Optimized for quick family forwarding and mobile reading.",
+  },
+  {
+    value: "family-review",
+    label: "Family review mode",
+    description: "Hold the draft for review before external sharing.",
+  },
+]
+
+function SectionCard({
+  eyebrow,
+  title,
+  description,
+  children,
+}: {
+  eyebrow: string
+  title: string
+  description: string
+  children: React.ReactNode
+}) {
+  return (
+    <Card className="border-white/10 bg-white/[0.04] shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+      <CardHeader className="space-y-3">
+        <p className="text-xs font-medium uppercase tracking-[0.28em] text-primary">{eyebrow}</p>
+        <div className="space-y-2">
+          <CardTitle className="text-2xl text-foreground">{title}</CardTitle>
+          <CardDescription className="max-w-2xl text-sm leading-6 text-muted-foreground">
+            {description}
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-5">{children}</CardContent>
+    </Card>
+  )
+}
+
+function FieldShell({
+  label,
+  hint,
+  children,
+}: {
+  label: string
+  hint?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-2.5">
+      <Label className="text-sm font-medium text-foreground">{label}</Label>
+      {children}
+      {hint ? <p className="text-xs leading-5 text-muted-foreground">{hint}</p> : null}
+    </div>
+  )
+}
+
+function ChoiceGroup<T extends string>({
+  value,
+  options,
+  onChange,
+  columns = 3,
+}: {
+  value: T
+  options: Array<{ value: T; label: string; description: string }>
+  onChange: (value: T) => void
+  columns?: 2 | 3
+}) {
+  return (
+    <div className={cn("grid gap-3", columns === 2 ? "md:grid-cols-2" : "md:grid-cols-3")}>
+      {options.map((option) => {
+        const isActive = option.value === value
+
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "rounded-2xl border px-4 py-4 text-left transition-all",
+              isActive
+                ? "border-primary/40 bg-primary/12 shadow-[0_16px_40px_rgba(212,175,55,0.12)]"
+                : "border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/[0.05]",
+            )}
+          >
+            <p className={cn("text-sm font-medium", isActive ? "text-foreground" : "text-foreground/90")}>
+              {option.label}
+            </p>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">{option.description}</p>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function SelectField({
+  value,
+  placeholder,
+  options,
+  onChange,
+}: {
+  value: string
+  placeholder: string
+  options: string[]
+  onChange: (value: string) => void
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="w-full border-white/10 bg-black/20">
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent className="border-white/10 bg-[#151518]">
+        {options.map((option) => (
+          <SelectItem key={option} value={option}>
+            {option}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
+function statusLabel(status: "not-submitted" | "submitted" | "verified") {
+  if (status === "verified") return "Verified"
+  if (status === "submitted") return "Submitted"
+  return "Not submitted"
+}
+
+function statusClasses(status: "not-submitted" | "submitted" | "verified") {
+  if (status === "verified") return "border-emerald-400/25 bg-emerald-500/12 text-emerald-100"
+  if (status === "submitted") return "border-amber-400/25 bg-amber-500/12 text-amber-100"
+  return "border-white/10 bg-white/[0.04] text-muted-foreground"
+}
+
+function profileCompletion(draft: ProfileDraft) {
+  const checks = [
+    draft.basics.firstName,
+    draft.basics.gender,
+    draft.basics.age,
+    draft.basics.profession,
+    draft.basics.district,
+    draft.basics.religion,
+    draft.horoscope.birthDate,
+    draft.horoscope.nakath,
+    draft.horoscope.lagna,
+    draft.horoscope.birthTime,
+    draft.horoscope.birthPlace,
+    draft.family.education,
+    draft.family.summary,
+    draft.preferences.ageMin,
+    draft.preferences.ageMax,
+    draft.preferences.willingToMigrate ? "yes" : "no",
+  ]
+
+  const completed = checks.filter(Boolean).length
+  return Math.round((completed / checks.length) * 100)
+}
+
+const assetCards: Array<{
+  kind: ProfileAssetKind
+  title: string
+  description: string
+  accept: string
+  icon: React.ComponentType<{ className?: string }>
+}> = [
+  {
+    kind: "profile-photo",
+    title: "Profile photo",
+    description: "Used for the biodata document now, and later for blurred or unlocked profile views.",
+    accept: "image/*",
+    icon: ImageIcon,
+  },
+  {
+    kind: "nic-document",
+    title: "NIC document",
+    description: "Supports the trust workflow and gives the verification team something to review.",
+    accept: "image/*,.pdf",
+    icon: CreditCard,
+  },
+  {
+    kind: "selfie",
+    title: "Verification selfie",
+    description: "Lets us match the account holder to the submitted identity document later.",
+    accept: "image/*",
+    icon: Camera,
+  },
+]
+
+export function BiodataBuilder() {
+  const router = useRouter()
+  const { user, loading: authLoading, signOutUser } = useAuth()
+  const { draft, setDraft } = useBiodataStore()
+  const [backendAvailable, setBackendAvailable] = useState(false)
+  const [backendStatus, setBackendStatus] = useState<
+    "checking" | "disabled" | "ready" | "saving" | "saved" | "error"
+  >("checking")
+  const [backendMessage, setBackendMessage] = useState("Checking Firebase configuration...")
+  const [uploadingAsset, setUploadingAsset] = useState<ProfileAssetKind | null>(null)
+  const [uploadMessage, setUploadMessage] = useState("Upload profile media after signing in to start the verification path.")
+  const previewDraft = useDeferredValue(draft)
+
+  useEffect(() => {
+    const backendEnabled = isFirebaseConfigured()
+
+    setBackendAvailable(backendEnabled)
+
+    try {
+      const storedDraft = window.localStorage.getItem(PROFILE_DRAFT_STORAGE_KEY)
+      if (storedDraft) {
+        setDraft(syncVerificationState(mergeProfileDraft(JSON.parse(storedDraft) as Partial<ProfileDraft>)))
+      }
+    } catch {
+      // Ignore malformed local drafts and keep the starter profile.
+    }
+
+    if (!backendEnabled) {
+      setBackendStatus("disabled")
+      setBackendMessage("Firebase env vars are not configured yet. Working in local draft mode.")
+      return
+    }
+
+    if (authLoading) {
+      setBackendStatus("checking")
+      setBackendMessage("Checking signed-in user...")
+      return
+    }
+
+    if (!user) {
+      setBackendStatus("ready")
+      setBackendMessage("Firebase is ready. Sign in to save this biodata under your account.")
+      return
+    }
+
+    let cancelled = false
+
+    void loadProfileDraftFromBackend(user.uid)
+      .then((remoteDraft) => {
+        if (cancelled) return
+
+        if (remoteDraft) {
+          setDraft(syncVerificationState(remoteDraft))
+          setBackendMessage("Loaded the latest biodata draft from Firestore.")
+        } else {
+          setBackendMessage("No Firestore profile exists for this account yet. Save to create one.")
+        }
+
+        setBackendStatus("ready")
+      })
+      .catch(() => {
+        if (cancelled) return
+
+        setBackendStatus("error")
+        setBackendMessage("Could not load the Firestore profile. Local draft is still available.")
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [authLoading, user])
+
+  useEffect(() => {
+    window.localStorage.setItem(PROFILE_DRAFT_STORAGE_KEY, JSON.stringify(syncVerificationState(draft)))
+  }, [draft])
+
+  async function saveToBackend() {
+    if (!backendAvailable) return
+    if (!user) {
+      router.push(`/auth?redirectTo=${encodeURIComponent("/biodata")}`)
+      return
+    }
+
+    try {
+      const syncedDraft = syncVerificationState(draft)
+
+      setBackendStatus("saving")
+      setBackendMessage("Saving biodata to Firestore...")
+
+      setDraft(syncedDraft)
+      await saveProfileDraftToBackend(user.uid, syncedDraft)
+      setBackendStatus("saved")
+      setBackendMessage("Biodata saved to Firestore under your signed-in account.")
+    } catch {
+      setBackendStatus("error")
+      setBackendMessage("Save failed. Check Firebase config and Firestore rules, then try again.")
+    }
+  }
+
+  async function handleAssetUpload(kind: ProfileAssetKind, file: File) {
+    if (!backendAvailable) {
+      setUploadMessage("Firebase Storage is not configured yet, so uploads are still disabled.")
+      return
+    }
+
+    if (!user) {
+      router.push(`/auth?redirectTo=${encodeURIComponent("/biodata")}`)
+      return
+    }
+
+    try {
+      setUploadingAsset(kind)
+      setUploadMessage(`Uploading ${kind.replace("-", " ")}...`)
+      setBackendStatus("saving")
+      setBackendMessage("Uploading file to Firebase Storage and syncing the profile...")
+
+      const { path, url } = await uploadProfileAsset(user.uid, kind, file)
+      let nextDraft = draft
+
+      setDraft((current) => {
+        const media =
+          kind === "profile-photo"
+            ? {
+                ...current.media,
+                profilePhotoUrl: url,
+                profilePhotoPath: path,
+              }
+            : kind === "nic-document"
+              ? {
+                  ...current.media,
+                  nicDocumentUrl: url,
+                  nicDocumentPath: path,
+                }
+              : {
+                  ...current.media,
+                  selfieUrl: url,
+                  selfiePath: path,
+                }
+
+        nextDraft = syncVerificationState({
+          ...current,
+          media,
+        })
+
+        return nextDraft
+      })
+
+      await saveProfileDraftToBackend(user.uid, nextDraft)
+      setBackendStatus("saved")
+      setBackendMessage("Profile media uploaded and biodata synced to Firestore.")
+      setUploadMessage(`${file.name} is uploaded and linked to this biodata.`)
+    } catch {
+      setBackendStatus("error")
+      setBackendMessage("Upload failed. Check Firebase Storage setup and try again.")
+      setUploadMessage("The file could not be uploaded. Firebase Storage rules or setup may still need attention.")
+    } finally {
+      setUploadingAsset(null)
+    }
+  }
+
+  function assetMeta(kind: ProfileAssetKind) {
+    if (kind === "profile-photo") {
+      return {
+        url: draft.media.profilePhotoUrl,
+        path: draft.media.profilePhotoPath,
+        status: "Ready for biodata preview",
+      }
+    }
+
+    if (kind === "nic-document") {
+      return {
+        url: draft.media.nicDocumentUrl,
+        path: draft.media.nicDocumentPath,
+        status: statusLabel(getVerificationStatus(draft, "nic")),
+      }
+    }
+
+    return {
+      url: draft.media.selfieUrl,
+      path: draft.media.selfiePath,
+      status: statusLabel(getVerificationStatus(draft, "selfie")),
+    }
+  }
+
+  const completion = profileCompletion(previewDraft)
+  const displayAge = ageFromBirthDate(previewDraft.horoscope.birthDate) ?? previewDraft.basics.age
+  const documentHref = user ? `/biodata/document?profileId=${user.uid}` : "/biodata/document"
+  const nicStatus = getVerificationStatus(previewDraft, "nic")
+  const selfieStatus = getVerificationStatus(previewDraft, "selfie")
+  const verificationReady = isFullyVerified(previewDraft)
+  const verificationPackReady = Boolean(previewDraft.media.nicDocumentUrl && previewDraft.media.selfieUrl)
+  const horoscopeReady = Boolean(
+    previewDraft.horoscope.birthDate &&
+      previewDraft.horoscope.nakath &&
+      previewDraft.horoscope.lagna &&
+      previewDraft.horoscope.birthTime,
+  )
+
+  return (
+    <main className="relative min-h-screen overflow-hidden bg-[#0B0B0C] text-[#F9F9F7]">
+      <AstrologyBackground />
+
+      <section className="relative z-10 px-6 pb-16 pt-10 md:px-12 lg:px-20">
+        <div className="mx-auto max-w-7xl">
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <Button variant="ghost" asChild className="w-fit rounded-full border border-white/10 bg-white/[0.04]">
+                <Link href="/">
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to landing page
+                </Link>
+              </Button>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className="rounded-full bg-primary/90 px-3 py-1 text-primary-foreground">Feature 1</Badge>
+                <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1">
+                  Biodata builder
+                </Badge>
+              </div>
+            </div>
+
+            <div className="max-w-4xl">
+              <p className="text-sm font-medium uppercase tracking-[0.3em] text-primary">
+                Product foundation
+              </p>
+              <h1 className="mt-4 text-4xl font-semibold tracking-tight text-foreground md:text-5xl">
+                Build the biodata first, then layer in Porondam, privacy, and verification with real structure.
+              </h1>
+              <p className="mt-5 max-w-3xl text-lg leading-8 text-muted-foreground">
+                This is the first roadmap feature turned into a real screen. We are capturing the profile fields the
+                PDF calls out, while previewing how the final biodata can feel inside the app.
+              </p>
+
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Button asChild className="h-12 rounded-full bg-primary px-6 text-base font-semibold text-primary-foreground hover:bg-primary/90">
+                  <Link href={documentHref}>
+                    Open share-ready biodata
+                    <ArrowUpRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button
+                  variant="outline"
+                  asChild
+                  className="h-12 rounded-full border-white/15 bg-white/[0.04] px-6 text-base text-foreground hover:bg-white/[0.08]"
+                >
+                  <Link href={documentHref}>Open PDF / print view</Link>
+                </Button>
+                <Button
+                  onClick={saveToBackend}
+                  disabled={!backendAvailable || backendStatus === "saving" || backendStatus === "checking"}
+                  className="h-12 rounded-full bg-[#7b5510] px-6 text-base font-semibold text-[#fff7e5] hover:bg-[#62420c] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {backendStatus === "saving" ? (
+                    <>
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                      Saving
+                    </>
+                  ) : (
+                    <>
+                      <CloudUpload className="h-4 w-4" />
+                      Save to backend
+                    </>
+                  )}
+                </Button>
+                {user ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => void signOutUser()}
+                    className="h-12 rounded-full border-white/15 bg-white/[0.04] px-6 text-base text-foreground hover:bg-white/[0.08]"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign out
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    asChild
+                    className="h-12 rounded-full border-white/15 bg-white/[0.04] px-6 text-base text-foreground hover:bg-white/[0.08]"
+                  >
+                    <Link href="/auth?redirectTo=%2Fbiodata">Sign in to save</Link>
+                  </Button>
+                )}
+              </div>
+
+              <div className="mt-5 rounded-[24px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Database className="h-4 w-4 text-primary" />
+                    <p className="text-sm font-semibold text-foreground">Backend status</p>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "rounded-full px-3 py-1",
+                      backendStatus === "saved" || backendStatus === "ready"
+                        ? "border-emerald-400/25 bg-emerald-500/12 text-emerald-100"
+                        : backendStatus === "disabled"
+                          ? "border-white/10 bg-white/[0.04] text-muted-foreground"
+                          : backendStatus === "error"
+                            ? "border-rose-400/25 bg-rose-500/12 text-rose-100"
+                            : "border-amber-400/25 bg-amber-500/12 text-amber-100",
+                    )}
+                  >
+                    {backendStatus}
+                  </Badge>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">{backendMessage}</p>
+                {user ? (
+                  <p className="mt-3 text-xs uppercase tracking-[0.22em] text-foreground/70">User id: {user.uid}</p>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-3">
+              {quickSignals.map((signal) => (
+                <Card
+                  key={signal.title}
+                  className="border-white/10 bg-white/[0.035] shadow-[0_18px_60px_rgba(0,0,0,0.22)] backdrop-blur-xl"
+                >
+                  <CardContent className="flex gap-4 px-6 py-6">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10">
+                      <signal.icon className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{signal.title}</p>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">{signal.body}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem]">
+            <div className="space-y-6">
+              <SectionCard
+                eyebrow="Basics"
+                title="Profile basics"
+                description="Capture the information that makes the profile readable before we get into matching logic."
+              >
+                <div className="grid gap-5 md:grid-cols-2">
+                  <FieldShell label="First name">
+                    <Input
+                      value={draft.basics.firstName}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          basics: { ...current.basics, firstName: event.target.value },
+                        }))
+                      }
+                      className="border-white/10 bg-black/20"
+                    />
+                  </FieldShell>
+                  <FieldShell label="Last name">
+                    <Input
+                      value={draft.basics.lastName}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          basics: { ...current.basics, lastName: event.target.value },
+                        }))
+                      }
+                      className="border-white/10 bg-black/20"
+                    />
+                  </FieldShell>
+                  <FieldShell label="Gender">
+                    <SelectField
+                      value={draft.basics.gender}
+                      placeholder="Select gender"
+                      options={genderOptions}
+                      onChange={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          basics: { ...current.basics, gender: value as ProfileDraft["basics"]["gender"] },
+                        }))
+                      }
+                    />
+                  </FieldShell>
+                  <FieldShell label="Age" hint="Changing age will keep the birth date aligned too.">
+                    <Input
+                      value={draft.basics.age}
+                      onChange={(event) => {
+                        const nextAge = event.target.value
+
+                        setDraft((current) => ({
+                          ...current,
+                          basics: { ...current.basics, age: nextAge },
+                          horoscope: {
+                            ...current.horoscope,
+                            birthDate: birthDateFromAge(nextAge, current.horoscope.birthDate) ?? current.horoscope.birthDate,
+                          },
+                        }))
+                      }}
+                      className="border-white/10 bg-black/20"
+                    />
+                  </FieldShell>
+                  <FieldShell label="Height (cm)">
+                    <Input
+                      value={draft.basics.heightCm}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          basics: { ...current.basics, heightCm: event.target.value },
+                        }))
+                      }
+                      className="border-white/10 bg-black/20"
+                    />
+                  </FieldShell>
+                  <FieldShell label="Profession">
+                    <SelectField
+                      value={draft.basics.profession}
+                      placeholder="Select profession"
+                      options={professionOptions}
+                      onChange={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          basics: { ...current.basics, profession: value },
+                        }))
+                      }
+                    />
+                  </FieldShell>
+                  <FieldShell label="District">
+                    <SelectField
+                      value={draft.basics.district}
+                      placeholder="Select district"
+                      options={districtOptions}
+                      onChange={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          basics: { ...current.basics, district: value },
+                        }))
+                      }
+                    />
+                  </FieldShell>
+                  <FieldShell label="Religion">
+                    <SelectField
+                      value={draft.basics.religion}
+                      placeholder="Select religion"
+                      options={religionOptions}
+                      onChange={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          basics: { ...current.basics, religion: value },
+                        }))
+                      }
+                    />
+                  </FieldShell>
+                  <FieldShell label="Primary language">
+                    <SelectField
+                      value={draft.basics.language}
+                      placeholder="Select language"
+                      options={languageOptions}
+                      onChange={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          basics: { ...current.basics, language: value },
+                        }))
+                      }
+                    />
+                  </FieldShell>
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                eyebrow="Horoscope"
+                title="Porondam-ready profile details"
+                description="These are the fields we will later feed into compatibility scoring and auspicious-timing features."
+              >
+                <div className="grid gap-5 md:grid-cols-2">
+                  <FieldShell label="Nakath">
+                    <SelectField
+                      value={draft.horoscope.nakath}
+                      placeholder="Select nakath"
+                      options={nakathOptions}
+                      onChange={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          horoscope: { ...current.horoscope, nakath: value },
+                        }))
+                      }
+                    />
+                  </FieldShell>
+                  <FieldShell label="Lagna">
+                    <SelectField
+                      value={draft.horoscope.lagna}
+                      placeholder="Select lagna"
+                      options={lagnaOptions}
+                      onChange={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          horoscope: { ...current.horoscope, lagna: value },
+                        }))
+                      }
+                    />
+                  </FieldShell>
+                  <FieldShell
+                    label="Birth date"
+                    hint="Added from the roadmap schema. This is more reliable than age alone for matching and astrology."
+                  >
+                    <Input
+                      type="date"
+                      value={draft.horoscope.birthDate}
+                      onChange={(event) => {
+                        const nextBirthDate = event.target.value
+
+                        setDraft((current) => ({
+                          ...current,
+                          basics: {
+                            ...current.basics,
+                            age: ageFromBirthDate(nextBirthDate) ?? current.basics.age,
+                          },
+                          horoscope: { ...current.horoscope, birthDate: nextBirthDate },
+                        }))
+                      }}
+                      className="border-white/10 bg-black/20"
+                    />
+                  </FieldShell>
+                  <FieldShell label="Birth time" hint="Required if we want confident Porondam context later.">
+                    <Input
+                      value={draft.horoscope.birthTime}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          horoscope: { ...current.horoscope, birthTime: event.target.value },
+                        }))
+                      }
+                      className="border-white/10 bg-black/20"
+                    />
+                  </FieldShell>
+                  <FieldShell label="Birth place">
+                    <Input
+                      value={draft.horoscope.birthPlace}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          horoscope: { ...current.horoscope, birthPlace: event.target.value },
+                        }))
+                      }
+                      className="border-white/10 bg-black/20"
+                    />
+                  </FieldShell>
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                eyebrow="Context"
+                title="Family and personal summary"
+                description="A good biodata feels respectful and informative, not overloaded. These fields shape that balance."
+              >
+                <div className="grid gap-5 md:grid-cols-2">
+                  <FieldShell label="Education">
+                    <SelectField
+                      value={draft.family.education}
+                      placeholder="Select education"
+                      options={educationOptions}
+                      onChange={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          family: { ...current.family, education: value },
+                        }))
+                      }
+                    />
+                  </FieldShell>
+                  <FieldShell label="Siblings">
+                    <SelectField
+                      value={draft.family.siblings}
+                      placeholder="Select sibling count"
+                      options={siblingOptions}
+                      onChange={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          family: { ...current.family, siblings: value },
+                        }))
+                      }
+                    />
+                  </FieldShell>
+                  <FieldShell label="Father's occupation">
+                    <Input
+                      value={draft.family.fatherOccupation}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          family: { ...current.family, fatherOccupation: event.target.value },
+                        }))
+                      }
+                      className="border-white/10 bg-black/20"
+                    />
+                  </FieldShell>
+                  <FieldShell label="Mother's occupation">
+                    <Input
+                      value={draft.family.motherOccupation}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          family: { ...current.family, motherOccupation: event.target.value },
+                        }))
+                      }
+                      className="border-white/10 bg-black/20"
+                    />
+                  </FieldShell>
+                </div>
+
+                <FieldShell
+                  label="Profile summary"
+                  hint="This becomes the short cover note on the biodata and profile detail screen."
+                >
+                  <Textarea
+                    value={draft.family.summary}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        family: { ...current.family, summary: event.target.value },
+                      }))
+                    }
+                    className="min-h-28 border-white/10 bg-black/20"
+                  />
+                </FieldShell>
+              </SectionCard>
+
+              <SectionCard
+                eyebrow="Preferences"
+                title="Partner preferences"
+                description="These fields shape the first matching pass and the biodata summary shared with families."
+              >
+                <div className="grid gap-5 md:grid-cols-2">
+                  <FieldShell label="Preferred age from">
+                    <Input
+                      value={draft.preferences.ageMin}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          preferences: { ...current.preferences, ageMin: event.target.value },
+                        }))
+                      }
+                      className="border-white/10 bg-black/20"
+                    />
+                  </FieldShell>
+                  <FieldShell label="Preferred age to">
+                    <Input
+                      value={draft.preferences.ageMax}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          preferences: { ...current.preferences, ageMax: event.target.value },
+                        }))
+                      }
+                      className="border-white/10 bg-black/20"
+                    />
+                  </FieldShell>
+                  <FieldShell label="Preferred district">
+                    <SelectField
+                      value={draft.preferences.preferredDistrict}
+                      placeholder="Select district"
+                      options={districtOptions}
+                      onChange={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          preferences: { ...current.preferences, preferredDistrict: value },
+                        }))
+                      }
+                    />
+                  </FieldShell>
+                  <FieldShell label="Preferred religion">
+                    <SelectField
+                      value={draft.preferences.religionPreference}
+                      placeholder="Select religion"
+                      options={religionOptions}
+                      onChange={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          preferences: { ...current.preferences, religionPreference: value },
+                        }))
+                      }
+                    />
+                  </FieldShell>
+                </div>
+
+                <FieldShell label="Profession preference">
+                  <Input
+                    value={draft.preferences.professionPreference}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        preferences: { ...current.preferences, professionPreference: event.target.value },
+                      }))
+                    }
+                    className="border-white/10 bg-black/20"
+                  />
+                </FieldShell>
+
+                <FieldShell label="Willing to migrate">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDraft((current) => ({
+                          ...current,
+                          preferences: { ...current.preferences, willingToMigrate: true },
+                        }))
+                      }
+                      className={cn(
+                        "rounded-2xl border px-4 py-4 text-left transition-all",
+                        draft.preferences.willingToMigrate
+                          ? "border-primary/40 bg-primary/12"
+                          : "border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/[0.05]",
+                      )}
+                    >
+                      <p className="text-sm font-medium text-foreground">Open to local or diaspora relocation</p>
+                      <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                        Matches the roadmap preference field for migration readiness.
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDraft((current) => ({
+                          ...current,
+                          preferences: { ...current.preferences, willingToMigrate: false },
+                        }))
+                      }
+                      className={cn(
+                        "rounded-2xl border px-4 py-4 text-left transition-all",
+                        !draft.preferences.willingToMigrate
+                          ? "border-primary/40 bg-primary/12"
+                          : "border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/[0.05]",
+                      )}
+                    >
+                      <p className="text-sm font-medium text-foreground">Prefer Sri Lanka based introductions</p>
+                      <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                        Keeps the first match set focused on local long-term plans.
+                      </p>
+                    </button>
+                  </div>
+                </FieldShell>
+              </SectionCard>
+
+              <SectionCard
+                eyebrow="Lifestyle Alignment"
+                title="Life After Marriage"
+                description="Astrology predicts cosmic compatibility, but practical lifestyle clash is a major factor. These private questions calculate your unique Lifestyle Alignment Percentage for potential matches."
+              >
+                <div className="grid gap-5 md:grid-cols-2">
+                  <FieldShell label="Expected Family Setup" hint="Joint family (parents) vs Nuclear family.">
+                    <SelectField
+                      value={draft.preferences.expectedFamilySetup}
+                      placeholder="Select family setup"
+                      options={familySetupOptions}
+                      onChange={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          preferences: { ...current.preferences, expectedFamilySetup: value },
+                        }))
+                      }
+                    />
+                  </FieldShell>
+                  <FieldShell label="Spouse Career Expectation" hint="Working, Non-working, or Flexible.">
+                    <SelectField
+                      value={draft.preferences.spouseCareerExpectation}
+                      placeholder="Select career expectation"
+                      options={spouseCareerOptions}
+                      onChange={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          preferences: { ...current.preferences, spouseCareerExpectation: value },
+                        }))
+                      }
+                    />
+                  </FieldShell>
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                eyebrow="Trust controls"
+                title="Privacy and verification"
+                description="This is where the roadmap starts to feel different from generic dating UI. These controls shape safety and how the introduction unfolds."
+              >
+                <div className="space-y-5">
+                  <FieldShell label="Photo visibility">
+                    <ChoiceGroup
+                      value={draft.privacy.photoVisibility}
+                      options={photoVisibilityOptions}
+                      onChange={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          privacy: { ...current.privacy, photoVisibility: value },
+                        }))
+                      }
+                    />
+                  </FieldShell>
+
+                  <FieldShell label="Contact visibility">
+                    <ChoiceGroup
+                      value={draft.privacy.contactVisibility}
+                      options={contactVisibilityOptions}
+                      onChange={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          privacy: { ...current.privacy, contactVisibility: value },
+                        }))
+                      }
+                    />
+                  </FieldShell>
+
+                  <FieldShell label="Biodata sharing mode">
+                    <ChoiceGroup
+                      value={draft.privacy.biodataShareMode}
+                      options={biodataShareOptions}
+                      onChange={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          privacy: { ...current.privacy, biodataShareMode: value },
+                        }))
+                      }
+                    />
+                  </FieldShell>
+
+                    <div className="grid gap-5 lg:grid-cols-2">
+                    <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                      <p className="text-sm font-semibold text-foreground">NIC review</p>
+                      <div className={cn("mt-4 rounded-2xl border px-4 py-3", statusClasses(nicStatus))}>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-medium">Current status</span>
+                          <span className="text-xs uppercase tracking-[0.2em]">{statusLabel(nicStatus)}</span>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                        {!draft.media.nicDocumentUrl
+                          ? "Upload the NIC file first. That moves this step into submitted review state."
+                          : nicStatus === "verified"
+                            ? "Identity document has cleared review and can support trust badges."
+                            : "File uploaded. This stays in submitted until your team review marks it verified."}
+                      </p>
+                    </div>
+
+                    <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
+                      <p className="text-sm font-semibold text-foreground">Selfie review</p>
+                      <div className={cn("mt-4 rounded-2xl border px-4 py-3", statusClasses(selfieStatus))}>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-medium">Current status</span>
+                          <span className="text-xs uppercase tracking-[0.2em]">{statusLabel(selfieStatus)}</span>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                        {!draft.media.selfieUrl
+                          ? "Upload a verification selfie so the identity check can be matched to the NIC."
+                          : selfieStatus === "verified"
+                            ? "Selfie check has cleared review and supports the trust layer."
+                            : "Selfie uploaded. This stays in submitted until a reviewer completes the match."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[28px] border border-primary/20 bg-primary/10 p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Verification workflow</p>
+                        <p className="mt-2 text-sm leading-6 text-foreground/85">
+                          {!verificationPackReady
+                            ? "Upload both the NIC document and the selfie to move this profile into the review queue."
+                            : verificationReady
+                              ? "Both checks are verified. This profile can show full trust badges across the product."
+                              : "Both files are uploaded. The profile is now in the review queue and waiting for a verified decision."}
+                        </p>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "rounded-full px-3 py-1",
+                          verificationReady
+                            ? "border-emerald-400/25 bg-emerald-500/12 text-emerald-100"
+                            : verificationPackReady
+                              ? "border-amber-400/25 bg-amber-500/12 text-amber-100"
+                              : "border-white/10 bg-white/[0.04] text-muted-foreground",
+                        )}
+                      >
+                        {verificationReady
+                          ? "Verified"
+                          : verificationPackReady
+                            ? "Submitted for review"
+                            : "Uploads missing"}
+                      </Badge>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-3">
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Step 1</p>
+                        <p className="mt-2 text-sm font-medium text-foreground">Upload NIC</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Step 2</p>
+                        <p className="mt-2 text-sm font-medium text-foreground">Upload selfie</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Step 3</p>
+                        <p className="mt-2 text-sm font-medium text-foreground">Team review unlocks verified</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <FieldShell
+                    label="Verification assets"
+                    hint="Uploads are attached to your signed-in account and saved back into the profile document."
+                  >
+                    <div className="grid gap-4 xl:grid-cols-3">
+                      {assetCards.map((asset) => {
+                        const meta = assetMeta(asset.kind)
+                        const isUploading = uploadingAsset === asset.kind
+
+                        return (
+                          <div
+                            key={asset.kind}
+                            className="rounded-[28px] border border-white/10 bg-black/20 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.2)]"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10">
+                                <asset.icon className="h-5 w-5 text-primary" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-foreground">{asset.title}</p>
+                                <p className="mt-2 text-xs leading-5 text-muted-foreground">{asset.description}</p>
+                              </div>
+                            </div>
+
+                            <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Status</span>
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    "rounded-full px-3 py-1",
+                                    meta.url
+                                      ? "border-emerald-400/25 bg-emerald-500/12 text-emerald-100"
+                                      : "border-white/10 bg-white/[0.04] text-muted-foreground",
+                                  )}
+                                >
+                                  {meta.url ? meta.status : "Not uploaded"}
+                                </Badge>
+                              </div>
+                              <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                                {meta.path ? meta.path : "No file attached yet."}
+                              </p>
+                              {meta.url ? (
+                                <a
+                                  href={meta.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="mt-3 inline-flex text-xs font-medium text-primary transition hover:text-primary/85"
+                                >
+                                  Open uploaded file
+                                </a>
+                              ) : null}
+                            </div>
+
+                            <div className="mt-4 space-y-3">
+                              <Input
+                                type="file"
+                                accept={asset.accept}
+                                disabled={!user || !backendAvailable || isUploading}
+                                onChange={(event) => {
+                                  const file = event.target.files?.[0]
+
+                                  if (file) {
+                                    void handleAssetUpload(asset.kind, file)
+                                  }
+
+                                  event.target.value = ""
+                                }}
+                                className="border-white/10 bg-black/20 file:mr-4 file:rounded-full file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground"
+                              />
+                              <p className="text-xs leading-5 text-muted-foreground">
+                                {isUploading
+                                  ? "Upload in progress. The profile will sync automatically when it finishes."
+                                  : user
+                                    ? "Signed in and ready for upload."
+                                    : "Sign in first so the files stay attached to your account."}
+                              </p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
+                      <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Upload status</p>
+                      <p className="mt-2 text-sm leading-6 text-foreground/85">{uploadMessage}</p>
+                    </div>
+                  </FieldShell>
+
+                  <FieldShell label="Family contact preference">
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            verification: { ...current.verification, familyContactAllowed: true },
+                          }))
+                        }
+                        className={cn(
+                          "rounded-2xl border px-4 py-4 text-left transition-all",
+                          draft.verification.familyContactAllowed
+                            ? "border-primary/40 bg-primary/12"
+                            : "border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/[0.05]",
+                        )}
+                      >
+                        <p className="text-sm font-medium text-foreground">Family can coordinate first</p>
+                        <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                          Best for parent-guided introductions and biodata review.
+                        </p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDraft((current) => ({
+                            ...current,
+                            verification: { ...current.verification, familyContactAllowed: false },
+                          }))
+                        }
+                        className={cn(
+                          "rounded-2xl border px-4 py-4 text-left transition-all",
+                          !draft.verification.familyContactAllowed
+                            ? "border-primary/40 bg-primary/12"
+                            : "border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/[0.05]",
+                        )}
+                      >
+                        <p className="text-sm font-medium text-foreground">Direct conversation first</p>
+                        <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                          Keep the introduction between the two profiles until both sides are comfortable.
+                        </p>
+                      </button>
+                    </div>
+                  </FieldShell>
+                </div>
+              </SectionCard>
+            </div>
+
+            <div className="space-y-6 lg:sticky lg:top-24 lg:self-start">
+              <Card className="border-white/10 bg-[#121214]/90 shadow-[0_28px_90px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+                <CardHeader className="space-y-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.26em] text-muted-foreground">Live biodata preview</p>
+                      <CardTitle className="mt-2 text-2xl text-foreground">
+                        {previewDraft.basics.firstName} {previewDraft.basics.lastName}
+                      </CardTitle>
+                      <CardDescription className="mt-2 text-sm leading-6 text-muted-foreground">
+                        {displayAge} years • {previewDraft.basics.gender} • {previewDraft.basics.profession} •{" "}
+                        {previewDraft.basics.district}
+                      </CardDescription>
+                    </div>
+                    <Badge className="rounded-full bg-primary/90 px-3 py-1 text-primary-foreground">
+                      {completion}% ready
+                    </Badge>
+                  </div>
+
+                  <div className="h-2 overflow-hidden rounded-full bg-white/8">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-primary via-[#f0d27b] to-primary"
+                      style={{ width: `${completion}%` }}
+                    />
+                  </div>
+                </CardHeader>
+
+                <CardContent className="space-y-5">
+                  <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-4">
+                    <ProfilePhotoCard
+                      photoUrl={previewDraft.media.profilePhotoUrl}
+                      displayName={`${previewDraft.basics.firstName} ${previewDraft.basics.lastName}`.trim()}
+                      visibility={previewDraft.privacy.photoVisibility}
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1">
+                      {previewDraft.basics.religion}
+                    </Badge>
+                    <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1">
+                      {previewDraft.basics.language}
+                    </Badge>
+                    <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1">
+                      {previewDraft.basics.gender}
+                    </Badge>
+                    <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1">
+                      {previewDraft.basics.heightCm} cm
+                    </Badge>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                      <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Horoscope</p>
+                      <p className="mt-2 text-sm font-medium text-foreground">
+                        {previewDraft.horoscope.nakath} • {previewDraft.horoscope.lagna}
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                        {horoscopeReady
+                          ? `Birth date ${previewDraft.horoscope.birthDate} and time ${previewDraft.horoscope.birthTime} are captured for Porondam context.`
+                          : "Birth details still need one more pass before Porondam scoring."}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                      <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Introduction mode</p>
+                      <p className="mt-2 text-sm font-medium text-foreground">
+                        {previewDraft.verification.familyContactAllowed ? "Family-aware intro" : "Direct intro"}
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                        {previewDraft.privacy.photoVisibility === "family"
+                          ? "This biodata can circulate before the photo is shown."
+                          : previewDraft.privacy.photoVisibility === "blurred"
+                            ? "Photos stay strongly softened until mutual comfort is clear."
+                            : "A milder privacy preview is shown until both sides respond positively."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
+                    <div className="flex items-center gap-2">
+                      <HeartHandshake className="h-4 w-4 text-primary" />
+                      <p className="text-sm font-semibold text-foreground">Summary for the biodata cover note</p>
+                    </div>
+                    <p className="mt-3 text-sm leading-7 text-muted-foreground">{previewDraft.family.summary}</p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Verification status</p>
+                    <div className="grid gap-3">
+                      <div className={cn("rounded-2xl border px-4 py-3", statusClasses(nicStatus))}>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-medium">NIC review</span>
+                          <span className="text-xs uppercase tracking-[0.2em]">
+                            {statusLabel(nicStatus)}
+                          </span>
+                        </div>
+                      </div>
+                      <div
+                        className={cn(
+                          "rounded-2xl border px-4 py-3",
+                          statusClasses(selfieStatus),
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-medium">Selfie review</span>
+                          <span className="text-xs uppercase tracking-[0.2em]">
+                            {statusLabel(selfieStatus)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
+                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Photo</p>
+                      <p className="mt-2 text-sm font-medium text-foreground">
+                        {previewDraft.media.profilePhotoUrl ? "Uploaded" : "Pending"}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
+                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">NIC file</p>
+                      <p className="mt-2 text-sm font-medium text-foreground">
+                        {previewDraft.media.nicDocumentUrl ? "Uploaded" : "Pending"}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
+                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Selfie</p>
+                      <p className="mt-2 text-sm font-medium text-foreground">
+                        {previewDraft.media.selfieUrl ? "Uploaded" : "Pending"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-primary/20 bg-primary/10 p-5">
+                    <div className="flex items-center gap-2">
+                      {verificationReady ? (
+                        <BadgeCheck className="h-4 w-4 text-primary" />
+                      ) : (
+                        <LockKeyhole className="h-4 w-4 text-primary" />
+                      )}
+                      <p className="text-sm font-semibold text-foreground">
+                        {verificationReady ? "Ready for visible trust badges" : "Still in trust-setup mode"}
+                      </p>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-foreground/85">
+                      Photos: {previewDraft.privacy.photoVisibility.replace("-", " ")}. Contact:{" "}
+                      {previewDraft.privacy.contactVisibility.replace("-", " ")}. Sharing:{" "}
+                      {previewDraft.privacy.biodataShareMode.replace("-", " ")}.
+                    </p>
+                  </div>
+
+                  <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-5">
+                    <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Partner preference snapshot</p>
+                    <p className="mt-3 text-sm leading-7 text-foreground">
+                      Age {previewDraft.preferences.ageMin} to {previewDraft.preferences.ageMax}, preferably from{" "}
+                      {previewDraft.preferences.preferredDistrict}, {previewDraft.preferences.religionPreference}, with a{" "}
+                      {previewDraft.preferences.professionPreference.toLowerCase()}.{" "}
+                      {previewDraft.preferences.willingToMigrate
+                        ? "Open to diaspora / relocation."
+                        : "Prefers Sri Lanka based settling."} {" "}
+                      {previewDraft.preferences.expectedFamilySetup} setup desired.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <Button asChild className="h-11 rounded-full bg-primary px-5 font-semibold text-primary-foreground hover:bg-primary/90">
+                      <Link href={documentHref}>
+                        View biodata layout
+                        <ArrowUpRight className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      asChild
+                      className="h-11 rounded-full border-white/15 bg-white/[0.04] text-foreground hover:bg-white/[0.08]"
+                    >
+                      <Link href={documentHref}>Print / export PDF</Link>
+                    </Button>
+                    <Button
+                      onClick={saveToBackend}
+                      disabled={!backendAvailable || backendStatus === "saving" || backendStatus === "checking"}
+                      className="h-11 rounded-full bg-[#7b5510] px-5 font-semibold text-[#fff7e5] hover:bg-[#62420c] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {backendStatus === "saving" ? (
+                        <>
+                          <LoaderCircle className="h-4 w-4 animate-spin" />
+                          Saving
+                        </>
+                      ) : (
+                        <>
+                          <CloudUpload className="h-4 w-4" />
+                          Save
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-white/10 bg-white/[0.035] backdrop-blur-xl">
+                <CardContent className="px-6 py-6">
+                  <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Next after this</p>
+                  <p className="mt-3 text-sm leading-7 text-foreground">
+                    Once this structure is stable, the next roadmap slices should be PDF export, Porondam scoring,
+                    verification workflow, and profile detail views backed by Firebase.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  )
+}

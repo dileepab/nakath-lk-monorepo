@@ -1,0 +1,616 @@
+"use client"
+
+import Link from "next/link"
+import { useEffect, useMemo, useState } from "react"
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  BadgeCheck,
+  FileText,
+  HeartHandshake,
+  LoaderCircle,
+  LockKeyhole,
+  MapPin,
+  SearchX,
+  Sparkles,
+  UserRound,
+} from "lucide-react"
+
+import { useAuth } from "@/components/auth-provider"
+import { AstrologyBackground } from "@/components/astrology-background"
+import { ProfilePhotoCard } from "@/components/profile-photo-card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { getBrowseProfileFixture, type BrowseProfileFixture } from "@acme/core"
+import {
+  initialProfileDraft,
+  ageFromBirthDate,
+  getVerificationStatus,
+  isFullyVerified,
+  type ProfileDraft,
+} from "@acme/core"
+import { calculatePorondamPreview } from "@acme/core"
+import { isFirebaseConfigured, loadProfileDraftFromBackend } from "@/lib/profile-store"
+import { sendMatchRequest } from "@/lib/match-api"
+import { cn } from "@/lib/utils"
+
+function detailAge(draft: ProfileDraft) {
+  return ageFromBirthDate(draft.horoscope.birthDate) ?? draft.basics.age
+}
+
+function verificationClasses(draft: ProfileDraft) {
+  if (isFullyVerified(draft)) {
+    return "border-emerald-400/25 bg-emerald-500/12 text-emerald-100"
+  }
+
+  const nic = getVerificationStatus(draft, "nic")
+  const selfie = getVerificationStatus(draft, "selfie")
+
+  if (nic !== "not-submitted" || selfie !== "not-submitted") {
+    return "border-amber-400/25 bg-amber-500/12 text-amber-100"
+  }
+
+  return "border-white/10 bg-white/[0.04] text-muted-foreground"
+}
+
+function verificationLabel(draft: ProfileDraft) {
+  if (isFullyVerified(draft)) return "Verified"
+
+  const nic = getVerificationStatus(draft, "nic")
+  const selfie = getVerificationStatus(draft, "selfie")
+
+  if (nic !== "not-submitted" || selfie !== "not-submitted") return "Submitted"
+  return "Not submitted"
+}
+
+function visibilityLabel(draft: ProfileDraft) {
+  if (draft.privacy.photoVisibility === "family") return "Family review"
+  if (draft.privacy.photoVisibility === "mutual") return "Mutual unlock"
+  return "Blurred first"
+}
+
+function DetailSection({
+  title,
+  description,
+  children,
+}: {
+  title: string
+  description: string
+  children: React.ReactNode
+}) {
+  return (
+    <Card className="border-white/10 bg-white/[0.035] shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+      <CardHeader className="space-y-2">
+        <CardTitle className="text-xl text-foreground">{title}</CardTitle>
+        <CardDescription className="leading-6 text-muted-foreground">{description}</CardDescription>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  )
+}
+
+function DetailGrid({
+  items,
+}: {
+  items: Array<{ label: string; value: string }>
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {items.map((item) => (
+        <div key={item.label} className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+          <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">{item.label}</p>
+          <p className="mt-2 text-sm leading-6 text-foreground">{item.value}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function ProfileDetailPage({ profileId }: { profileId: string }) {
+  const { user, loading: authLoading } = useAuth()
+  const [profile, setProfile] = useState<BrowseProfileFixture | null>(null)
+  const [status, setStatus] = useState<"loading" | "ready" | "not-found" | "sign-in-required">("loading")
+  const [referenceDraft, setReferenceDraft] = useState<ProfileDraft>(initialProfileDraft)
+  const [referenceLabel, setReferenceLabel] = useState("Compared against the launch demo biodata.")
+  const [requestState, setRequestState] = useState<"idle" | "loading" | "sent">("idle")
+
+  const handleRequest = async () => {
+    if (!user || !profile || profile.source === "current-user") return
+    setRequestState("loading")
+    try {
+      await sendMatchRequest(user.uid, profile.id)
+      setRequestState("sent")
+    } catch {
+      setRequestState("idle")
+    }
+  }
+
+  useEffect(() => {
+    if (profileId === "me") {
+      if (authLoading) {
+        setStatus("loading")
+        return
+      }
+
+      if (!user || !isFirebaseConfigured()) {
+        setProfile(null)
+        setStatus("sign-in-required")
+        return
+      }
+
+      let cancelled = false
+      setStatus("loading")
+
+      void loadProfileDraftFromBackend(user.uid)
+        .then((draft) => {
+          if (cancelled) return
+
+          if (!draft) {
+            setProfile(null)
+            setStatus("not-found")
+            return
+          }
+
+          setProfile({
+            id: `current-${user.uid}`,
+            source: "current-user",
+            matchScore: 19,
+            draft,
+          })
+          setStatus("ready")
+        })
+        .catch(() => {
+          if (cancelled) return
+          setProfile(null)
+          setStatus("not-found")
+        })
+
+      return () => {
+        cancelled = true
+      }
+    }
+
+    const fixture = getBrowseProfileFixture(profileId)
+    setProfile(fixture)
+    setStatus(fixture ? "ready" : "not-found")
+  }, [authLoading, profileId, user])
+
+  useEffect(() => {
+    if (authLoading) return
+
+    if (!user || !isFirebaseConfigured()) {
+      setReferenceDraft(initialProfileDraft)
+      setReferenceLabel("Compared against the launch demo biodata.")
+      return
+    }
+
+    let cancelled = false
+
+    void loadProfileDraftFromBackend(user.uid)
+      .then((draft) => {
+        if (cancelled) return
+
+        if (draft) {
+          setReferenceDraft(draft)
+          setReferenceLabel("Compared against your saved biodata.")
+          return
+        }
+
+        setReferenceDraft(initialProfileDraft)
+        setReferenceLabel("Compared against the launch demo biodata.")
+      })
+      .catch(() => {
+        if (cancelled) return
+        setReferenceDraft(initialProfileDraft)
+        setReferenceLabel("Compared against the launch demo biodata.")
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [authLoading, user])
+
+  const displayName = useMemo(() => {
+    if (!profile) return ""
+    return `${profile.draft.basics.firstName} ${profile.draft.basics.lastName}`.trim()
+  }, [profile])
+
+  if (status === "loading") {
+    return (
+      <main className="relative min-h-screen overflow-hidden bg-[#0B0B0C] text-[#F9F9F7]">
+        <AstrologyBackground />
+        <section className="relative z-10 flex min-h-screen items-center justify-center px-6">
+          <Card className="w-full max-w-xl border-white/10 bg-white/[0.04] backdrop-blur-xl">
+            <CardContent className="flex items-center gap-3 px-6 py-6 text-muted-foreground">
+              <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
+              Loading the full profile view...
+            </CardContent>
+          </Card>
+        </section>
+      </main>
+    )
+  }
+
+  if (status === "sign-in-required") {
+    return (
+      <main className="relative min-h-screen overflow-hidden bg-[#0B0B0C] text-[#F9F9F7]">
+        <AstrologyBackground />
+        <section className="relative z-10 flex min-h-screen items-center justify-center px-6">
+          <Card className="w-full max-w-2xl border-white/10 bg-white/[0.04] backdrop-blur-xl">
+            <CardContent className="px-6 py-8">
+              <p className="text-lg font-semibold text-foreground">Sign in to open your full profile</p>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                We only open the `me` route when there is a signed-in account and a saved biodata attached to it.
+              </p>
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                <Button asChild className="h-11 rounded-full bg-primary px-5 font-semibold text-primary-foreground hover:bg-primary/90">
+                  <Link href="/auth?redirectTo=%2Fprofiles%2Fme">
+                    Sign in
+                    <ArrowUpRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button
+                  variant="outline"
+                  asChild
+                  className="h-11 rounded-full border-white/15 bg-white/[0.04] text-foreground hover:bg-white/[0.08]"
+                >
+                  <Link href="/profiles">Back to browse</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      </main>
+    )
+  }
+
+  if (status === "not-found" || !profile) {
+    return (
+      <main className="relative min-h-screen overflow-hidden bg-[#0B0B0C] text-[#F9F9F7]">
+        <AstrologyBackground />
+        <section className="relative z-10 flex min-h-screen items-center justify-center px-6">
+          <Card className="w-full max-w-2xl border-white/10 bg-white/[0.04] backdrop-blur-xl">
+            <CardContent className="px-6 py-8">
+              <div className="flex items-center gap-3">
+                <SearchX className="h-5 w-5 text-primary" />
+                <p className="text-lg font-semibold text-foreground">Profile not found</p>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                That profile detail view is not available yet. If this should be your own profile, save the biodata
+                first and then come back.
+              </p>
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                <Button asChild className="h-11 rounded-full bg-primary px-5 font-semibold text-primary-foreground hover:bg-primary/90">
+                  <Link href="/biodata">
+                    Open biodata builder
+                    <ArrowUpRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button
+                  variant="outline"
+                  asChild
+                  className="h-11 rounded-full border-white/15 bg-white/[0.04] text-foreground hover:bg-white/[0.08]"
+                >
+                  <Link href="/profiles">Back to browse</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      </main>
+    )
+  }
+
+  const { draft } = profile
+  const age = detailAge(draft)
+  const verified = isFullyVerified(draft)
+  const preview = profile.source === "current-user" ? null : calculatePorondamPreview(referenceDraft, draft)
+
+  return (
+    <main className="relative min-h-screen overflow-hidden bg-[#0B0B0C] text-[#F9F9F7]">
+      <AstrologyBackground />
+
+      <section className="relative z-10 px-6 pb-16 pt-10 md:px-12 lg:px-20">
+        <div className="mx-auto max-w-7xl">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <Button variant="ghost" asChild className="w-fit rounded-full border border-white/10 bg-white/[0.04]">
+              <Link href="/profiles">
+                <ArrowLeft className="h-4 w-4" />
+                Back to browse
+              </Link>
+            </Button>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="rounded-full bg-primary/90 px-3 py-1 text-primary-foreground">Profile detail</Badge>
+              {profile.source === "current-user" ? (
+                <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1">
+                  Your profile
+                </Badge>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="mt-8 grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
+            <div className="space-y-6">
+              <Card className="overflow-hidden border-white/10 bg-[#121214]/90 py-0 shadow-[0_28px_90px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+                <CardContent className="p-5">
+                  <ProfilePhotoCard
+                    photoUrl={draft.media.profilePhotoUrl}
+                    displayName={displayName}
+                    visibility={draft.privacy.photoVisibility}
+                  />
+                </CardContent>
+              </Card>
+
+              <DetailSection
+                title="Trust snapshot"
+                description="This is where privacy, verification, and introduction mode come together."
+              >
+                <div className="space-y-3">
+                  <div className={cn("rounded-2xl border px-4 py-3", verificationClasses(draft))}>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-medium">Verification state</span>
+                      <span className="text-xs uppercase tracking-[0.2em]">{verificationLabel(draft)}</span>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                    <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Photo privacy</p>
+                    <p className="mt-2 text-sm leading-6 text-foreground">{visibilityLabel(draft)}</p>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                    <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Introduction path</p>
+                    <p className="mt-2 text-sm leading-6 text-foreground">
+                      {draft.verification.familyContactAllowed
+                        ? "Family can coordinate the first step."
+                        : "The introduction starts directly between the two profiles."}
+                    </p>
+                  </div>
+                </div>
+              </DetailSection>
+            </div>
+
+            <div className="space-y-6">
+              <Card className="border-white/10 bg-[#121214]/90 shadow-[0_28px_90px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+                <CardHeader className="space-y-4">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium uppercase tracking-[0.28em] text-primary">Full profile</p>
+                      <CardTitle className="mt-3 text-4xl text-foreground">{displayName}</CardTitle>
+                      <CardDescription className="mt-3 max-w-2xl text-base leading-7 text-muted-foreground">
+                        {age} years • {draft.basics.profession} • {draft.basics.district}
+                      </CardDescription>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-right">
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                        {profile.source === "current-user" ? "Reference profile" : "Porondam preview"}
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold text-primary">
+                        {profile.source === "current-user" ? "Base" : `${preview?.total ?? 0}/20`}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {profile.source === "current-user" ? "Used as your scoring basis." : preview?.label}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Badge className={cn("rounded-full px-3 py-1", verificationClasses(draft))}>
+                      {verificationLabel(draft)}
+                    </Badge>
+                    <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1 text-foreground">
+                      {draft.basics.religion}
+                    </Badge>
+                    <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1 text-foreground">
+                      {draft.basics.language}
+                    </Badge>
+                    <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1 text-foreground">
+                      {verified ? "Ready for visible trust badges" : "Trust setup in progress"}
+                    </Badge>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="space-y-6">
+                  <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
+                    <div className="flex items-center gap-2">
+                      <HeartHandshake className="h-4 w-4 text-primary" />
+                      <p className="text-sm font-semibold text-foreground">Profile summary</p>
+                    </div>
+                    <p className="mt-3 text-sm leading-7 text-muted-foreground">{draft.family.summary}</p>
+                  </div>
+
+                  <DetailGrid
+                    items={[
+                      { label: "Profession", value: draft.basics.profession },
+                      { label: "Location", value: draft.basics.district },
+                      { label: "Height", value: `${draft.basics.heightCm} cm` },
+                      { label: "Religion", value: draft.basics.religion },
+                    ]}
+                  />
+
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    {profile.source === "current-user" ? (
+                      <>
+                        <Button asChild className="h-11 rounded-full bg-primary px-5 font-semibold text-primary-foreground hover:bg-primary/90">
+                          <Link href="/biodata">
+                            Edit biodata
+                            <ArrowUpRight className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                        <Button
+                          variant="outline"
+                          asChild
+                          className="h-11 rounded-full border-white/15 bg-white/[0.04] text-foreground hover:bg-white/[0.08]"
+                        >
+                          <Link href="/biodata/document">
+                            <FileText className="h-4 w-4" />
+                            Open biodata document
+                          </Link>
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button 
+                          className="h-11 rounded-full bg-primary px-5 font-semibold text-primary-foreground opacity-90"
+                          onClick={handleRequest}
+                          disabled={!user || requestState !== "idle"}
+                        >
+                          {requestState === "loading" ? "Sending Request..." : requestState === "sent" ? "Request Sent" : "Request introduction"}
+                          {requestState === "idle" && <LockKeyhole className="ml-2 h-4 w-4" />}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          disabled
+                          className="h-11 rounded-full border-white/15 bg-white/[0.04] text-foreground"
+                        >
+                          Contact still protected
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="grid gap-6 lg:grid-cols-2">
+                <DetailSection
+                  title="Porondam preview"
+                  description={
+                    profile.source === "current-user"
+                      ? "This biodata is currently acting as the comparison base for other profiles."
+                      : "Launch-stage scoring built from horoscope inputs, preferences, and trust signals."
+                  }
+                >
+                  {profile.source === "current-user" ? (
+                    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                      <p className="text-sm leading-7 text-muted-foreground">
+                        Save and refine this biodata, then compare other profiles against it in the browse flow. This
+                        keeps the score personalized to your own age range, district, religion, and intro preferences.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{preview?.label}</p>
+                            <p className="mt-2 text-sm leading-6 text-foreground/85">{preview?.summary}</p>
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-right">
+                            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Score</p>
+                            <p className="mt-2 text-2xl font-semibold text-primary">{preview?.total ?? 0}/20</p>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">{referenceLabel}</p>
+                      <div className="grid gap-3">
+                        {preview?.factors.map((factor) => (
+                          <div key={factor.key} className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-medium text-foreground">{factor.label}</p>
+                              <span className="text-xs uppercase tracking-[0.2em] text-primary">
+                                {factor.score}/{factor.max}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-muted-foreground">{factor.note}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </DetailSection>
+
+                <DetailSection
+                  title="Horoscope context"
+                  description="The fields we already have in place for Porondam and timing features later."
+                >
+                  <DetailGrid
+                    items={[
+                      { label: "Birth date", value: draft.horoscope.birthDate },
+                      { label: "Birth time", value: draft.horoscope.birthTime },
+                      { label: "Birth place", value: draft.horoscope.birthPlace },
+                      { label: "Nakath / Lagna", value: `${draft.horoscope.nakath} • ${draft.horoscope.lagna}` },
+                    ]}
+                  />
+                </DetailSection>
+
+                <DetailSection
+                  title="Family background"
+                  description="Structured for family-safe browsing rather than generic dating copy."
+                >
+                  <DetailGrid
+                    items={[
+                      { label: "Education", value: draft.family.education },
+                      { label: "Siblings", value: draft.family.siblings },
+                      { label: "Father's occupation", value: draft.family.fatherOccupation },
+                      { label: "Mother's occupation", value: draft.family.motherOccupation },
+                    ]}
+                  />
+                </DetailSection>
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-[0.94fr_1.06fr]">
+                <DetailSection
+                  title="Partner preferences"
+                  description="This will later feed matching and filter logic more directly."
+                >
+                  <DetailGrid
+                    items={[
+                      { label: "Preferred age", value: `${draft.preferences.ageMin} to ${draft.preferences.ageMax}` },
+                      { label: "Preferred district", value: draft.preferences.preferredDistrict },
+                      { label: "Religion preference", value: draft.preferences.religionPreference },
+                      { label: "Profession preference", value: draft.preferences.professionPreference },
+                    ]}
+                  />
+                </DetailSection>
+
+                <DetailSection
+                  title="Trust and interaction rules"
+                  description="These rules control what another person actually sees and when it unlocks."
+                >
+                  <div className="space-y-3">
+                    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                      <div className="flex items-center gap-2">
+                        <UserRound className="h-4 w-4 text-primary" />
+                        <p className="text-sm font-medium text-foreground">Contact visibility</p>
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                        {draft.privacy.contactVisibility === "family-request"
+                          ? "Contact is shared only through a family request flow."
+                          : draft.privacy.contactVisibility === "mutual"
+                            ? "Contact is released after mutual interest."
+                            : "Contact stays hidden in the first stage."}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-primary" />
+                        <p className="text-sm font-medium text-foreground">Long-term location preference</p>
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                        {draft.preferences.willingToMigrate
+                          ? "Open to local or diaspora relocation when the match is right."
+                          : "Prefers a Sri Lanka-based future and local introductions first."}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        <p className="text-sm font-medium text-foreground">Sharing mode</p>
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                        Biodata is currently prepared in {draft.privacy.biodataShareMode.replace("-", " ")} mode.
+                      </p>
+                    </div>
+                  </div>
+                </DetailSection>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  )
+}
