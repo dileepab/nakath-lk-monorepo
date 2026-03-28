@@ -47,7 +47,7 @@ export function HeroSection() {
               <Star className="h-5 w-5 fill-primary text-primary" />
             </div>
             <div>
-              <p className="text-base font-semibold tracking-tight text-foreground">Sanhinda</p>
+              <p className="text-base font-semibold tracking-tight text-foreground">Nakath.lk</p>
               <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">Sri Lankan Matrimony</p>
             </div>
           </div>
@@ -94,7 +94,7 @@ export function HeroSection() {
           </h1>
 
           <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
-            Sanhinda should feel premium, but serious. Start with a biodata people can actually share, review
+            Nakath.lk should feel premium, but serious. Start with a biodata people can actually share, review
             Porondam instantly, and keep photos and contact details protected until both sides are ready.
           </p>
 

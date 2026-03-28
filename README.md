@@ -1,4 +1,4 @@
-# Sanhinda Matrimony Platform
+# Nakath.lk Matrimony Platform
 
 A modern, highly-secure, and culturally accurate matchmaking platform designed specifically for the Sri Lankan market. This application aims to outperform traditional classifieds (like Poruwa) by deeply integrating astrological matching algorithms, zero-compromise privacy settings, and a premium "Life After Marriage" alignment score.
 

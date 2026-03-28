@@ -55,7 +55,7 @@ export function BiodataDocument({ draft }: { draft: ProfileDraft }) {
       <header className="rounded-[30px] border border-[#dbc68d] bg-[linear-gradient(135deg,#271708_0%,#4d310b_52%,#7b5510_100%)] px-6 py-7 text-[#fff7e5] md:px-8">
         <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.32em] text-[#e5cc81]">Sanhinda biodata</p>
+            <p className="text-xs font-medium uppercase tracking-[0.32em] text-[#e5cc81]">Nakath.lk biodata</p>
             <h1 className="mt-4 text-3xl font-semibold tracking-tight md:text-4xl">{displayName}</h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-[#f3e7cb]">
               A polished matrimonial biodata designed for careful introductions, family sharing, and future digital export.

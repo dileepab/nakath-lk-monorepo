@@ -1,5 +1,5 @@
 {
-  "name": "sanhinda-monorepo",
+  "name": "nakath-lk-monorepo",
   "private": true,
   "workspaces": [
     "apps/*",

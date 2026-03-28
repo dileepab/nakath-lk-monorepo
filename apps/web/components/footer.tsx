@@ -20,7 +20,7 @@ export function Footer() {
                 <Star className="h-5 w-5 fill-primary text-primary" />
               </div>
               <div>
-                <p className="text-lg font-semibold tracking-tight text-foreground">Sanhinda</p>
+                <p className="text-lg font-semibold tracking-tight text-foreground">Nakath.lk</p>
                 <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">Verified Sri Lankan Matrimony</p>
               </div>
             </div>
@@ -66,7 +66,7 @@ export function Footer() {
         </div>
 
         <div className="mt-12 flex flex-col gap-3 border-t border-white/10 pt-6 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
-          <p>© 2026 Sanhinda. Prototype direction for the launch landing page.</p>
+          <p>© 2026 Nakath.lk. Prototype direction for the launch landing page.</p>
           <p>Premium in tone, disciplined in product behavior.</p>
         </div>
       </div>

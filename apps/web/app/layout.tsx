@@ -10,7 +10,7 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'Sanhinda | Verified Sri Lankan Matrimony',
+  title: 'Nakath.lk | Verified Sri Lankan Matrimony',
   description:
     'A trust-first Sri Lankan matrimony platform with biodata PDFs, instant Porondam, verification, and privacy controls for individuals and families.',
   icons: {

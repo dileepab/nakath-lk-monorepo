@@ -29,7 +29,7 @@ export function StickyCTA() {
             <p className="font-semibold text-foreground">Start with the biodata. Reveal more only when it makes sense.</p>
             <p className="mt-1 flex items-center justify-center gap-2 text-sm text-muted-foreground sm:justify-start">
               <LockKeyhole className="h-4 w-4 text-primary" />
-              Trust-first launch direction for Sanhinda
+              Trust-first launch direction for Nakath.lk
             </p>
           </div>
 

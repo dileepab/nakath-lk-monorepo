@@ -5,7 +5,7 @@ export type VerificationState = "not-submitted" | "submitted" | "verified"
 export type Gender = "Female" | "Male" | "Other"
 export type VerificationAsset = "nic" | "selfie"
 
-export const PROFILE_DRAFT_STORAGE_KEY = "sanhinda-profile-draft"
+export const PROFILE_DRAFT_STORAGE_KEY = "nakath-lk-profile-draft"
 
 export interface ProfileDraft {
   basics: {
