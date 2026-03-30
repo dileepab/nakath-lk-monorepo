@@ -31,9 +31,20 @@ import {
   type ProfileDraft,
 } from "@acme/core"
 import { calculatePorondamPreview } from "@acme/core"
-import { isFirebaseConfigured, loadProfileDraftFromBackend } from "@/lib/profile-store"
-import { sendMatchRequest } from "@/lib/match-api"
+import {
+  isFirebaseConfigured,
+  loadOwnProfileDraftFromBackend,
+} from "@/lib/profile-store"
+import { getReceivedMatches, getSentMatches, sendMatchRequest } from "@/lib/match-api"
 import { cn } from "@/lib/utils"
+
+type ContactReveal = {
+  revealed: boolean
+  mode: "none" | "personal" | "family"
+  displayName: string
+  fields: Array<{ label: string; value: string }>
+  message: string
+}
 
 function detailAge(draft: ProfileDraft) {
   return ageFromBirthDate(draft.horoscope.birthDate) ?? draft.basics.age
@@ -107,6 +118,12 @@ function DetailGrid({
   )
 }
 
+type RelationshipState = {
+  status: "pending" | "approved" | "rejected" | "withdrawn"
+  direction: "incoming" | "outgoing"
+  matchId: string
+}
+
 export function ProfileDetailPage({ profileId }: { profileId: string }) {
   const { user, loading: authLoading } = useAuth()
   const [profile, setProfile] = useState<BrowseProfileFixture | null>(null)
@@ -114,12 +131,16 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
   const [referenceDraft, setReferenceDraft] = useState<ProfileDraft>(initialProfileDraft)
   const [referenceLabel, setReferenceLabel] = useState("Compared against the launch demo biodata.")
   const [requestState, setRequestState] = useState<"idle" | "loading" | "sent">("idle")
+  const [relationship, setRelationship] = useState<RelationshipState | null>(null)
+  const [contactReveal, setContactReveal] = useState<ContactReveal | null>(null)
+  const [loadingContact, setLoadingContact] = useState(false)
 
   const handleRequest = async () => {
     if (!user || !profile || profile.source === "current-user") return
     setRequestState("loading")
     try {
-      await sendMatchRequest(user.uid, profile.id)
+      const idToken = await user.getIdToken()
+      await sendMatchRequest(idToken, profile.id)
       setRequestState("sent")
     } catch {
       setRequestState("idle")
@@ -142,7 +163,7 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
       let cancelled = false
       setStatus("loading")
 
-      void loadProfileDraftFromBackend(user.uid)
+      void loadOwnProfileDraftFromBackend(user.uid)
         .then((draft) => {
           if (cancelled) return
 
@@ -182,39 +203,110 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
     if (!user || !isFirebaseConfigured()) {
       setReferenceDraft(initialProfileDraft)
       setReferenceLabel("Compared against the launch demo biodata.")
+      setRelationship(null)
       return
     }
 
     let cancelled = false
 
-    void loadProfileDraftFromBackend(user.uid)
-      .then((draft) => {
+    void Promise.all([loadOwnProfileDraftFromBackend(user.uid), getReceivedMatches(user.uid), getSentMatches(user.uid)])
+      .then(([draft, received, sent]) => {
         if (cancelled) return
 
         if (draft) {
           setReferenceDraft(draft)
           setReferenceLabel("Compared against your saved biodata.")
-          return
+        } else {
+          setReferenceDraft(initialProfileDraft)
+          setReferenceLabel("Compared against the launch demo biodata.")
         }
 
-        setReferenceDraft(initialProfileDraft)
-        setReferenceLabel("Compared against the launch demo biodata.")
+        if (profileId !== "me") {
+          const incoming = received.find((match) => match.senderId === profileId)
+          const outgoing = sent.find((match) => match.receiverId === profileId)
+          const nextRelationship = incoming
+            ? { status: incoming.status, direction: "incoming" as const, matchId: incoming.id }
+            : outgoing
+              ? { status: outgoing.status, direction: "outgoing" as const, matchId: outgoing.id }
+              : null
+          setRelationship(nextRelationship)
+        } else {
+          setRelationship(null)
+        }
       })
       .catch(() => {
         if (cancelled) return
         setReferenceDraft(initialProfileDraft)
         setReferenceLabel("Compared against the launch demo biodata.")
+        setRelationship(null)
       })
 
     return () => {
       cancelled = true
     }
-  }, [authLoading, user])
+  }, [authLoading, profileId, user])
 
   const displayName = useMemo(() => {
     if (!profile) return ""
     return `${profile.draft.basics.firstName} ${profile.draft.basics.lastName}`.trim()
   }, [profile])
+  const isUnlocked = relationship?.status === "approved"
+  const hasPendingIncoming = relationship?.status === "pending" && relationship.direction === "incoming"
+  const hasPendingOutgoing = relationship?.status === "pending" && relationship.direction === "outgoing"
+  const chatHref = relationship?.matchId ? `/messages?matchId=${relationship.matchId}` : "/messages"
+
+  useEffect(() => {
+    if (!user || !profile || !isUnlocked || !relationship?.matchId || profile.source === "current-user") {
+      setContactReveal(null)
+      setLoadingContact(false)
+      return
+    }
+
+    const currentUser = user
+    const currentMatchId = relationship.matchId
+    let cancelled = false
+    setLoadingContact(true)
+
+    async function loadContactReveal() {
+      try {
+        const idToken = await currentUser.getIdToken()
+        const response = await fetch(`/api/matches/${currentMatchId}/contact`, {
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error("Could not load contact details.")
+        }
+
+        const payload = (await response.json()) as ContactReveal
+        if (!cancelled) {
+          setContactReveal(payload)
+        }
+      } catch {
+        if (!cancelled) {
+          setContactReveal({
+            revealed: false,
+            mode: "none",
+            displayName,
+            fields: [],
+            message: "Contact details are not available right now.",
+          })
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingContact(false)
+        }
+      }
+    }
+
+    void loadContactReveal()
+
+    return () => {
+      cancelled = true
+    }
+  }, [displayName, isUnlocked, profile, relationship?.matchId, user])
 
   if (status === "loading") {
     return (
@@ -241,7 +333,7 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
             <CardContent className="px-6 py-8">
               <p className="text-lg font-semibold text-foreground">Sign in to open your full profile</p>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                We only open the `me` route when there is a signed-in account and a saved biodata attached to it.
+                Sign in to view your saved profile.
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Button asChild className="h-11 rounded-full bg-primary px-5 font-semibold text-primary-foreground hover:bg-primary/90">
@@ -277,8 +369,7 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                 <p className="text-lg font-semibold text-foreground">Profile not found</p>
               </div>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                That profile detail view is not available yet. If this should be your own profile, save the biodata
-                first and then come back.
+                This profile is not available right now.
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Button asChild className="h-11 rounded-full bg-primary px-5 font-semibold text-primary-foreground hover:bg-primary/90">
@@ -337,15 +428,17 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                 <CardContent className="p-5">
                   <ProfilePhotoCard
                     photoUrl={draft.media.profilePhotoUrl}
+                    photoPath={draft.media.profilePhotoPath}
                     displayName={displayName}
                     visibility={draft.privacy.photoVisibility}
+                    unlocked={isUnlocked}
                   />
                 </CardContent>
               </Card>
 
               <DetailSection
                 title="Trust snapshot"
-                description="This is where privacy, verification, and introduction mode come together."
+                description="Privacy, verification, and introduction preferences."
               >
                 <div className="space-y-3">
                   <div className={cn("rounded-2xl border px-4 py-3", verificationClasses(draft))}>
@@ -357,7 +450,9 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
 
                   <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
                     <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Photo privacy</p>
-                    <p className="mt-2 text-sm leading-6 text-foreground">{visibilityLabel(draft)}</p>
+                    <p className="mt-2 text-sm leading-6 text-foreground">
+                      {isUnlocked ? "Unlocked for approved match" : visibilityLabel(draft)}
+                    </p>
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
@@ -392,7 +487,7 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                         {profile.source === "current-user" ? "Base" : `${preview?.total ?? 0}/20`}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {profile.source === "current-user" ? "Used as your scoring basis." : preview?.label}
+                        {profile.source === "current-user" ? "Your profile" : preview?.label}
                       </p>
                     </div>
                   </div>
@@ -408,7 +503,7 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                       {draft.basics.language}
                     </Badge>
                     <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1 text-foreground">
-                      {verified ? "Ready for visible trust badges" : "Trust setup in progress"}
+                      {verified ? "Verified profile" : "Verification in progress"}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -453,21 +548,61 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                       </>
                     ) : (
                       <>
-                        <Button 
-                          className="h-11 rounded-full bg-primary px-5 font-semibold text-primary-foreground opacity-90"
-                          onClick={handleRequest}
-                          disabled={!user || requestState !== "idle"}
-                        >
-                          {requestState === "loading" ? "Sending Request..." : requestState === "sent" ? "Request Sent" : "Request introduction"}
-                          {requestState === "idle" && <LockKeyhole className="ml-2 h-4 w-4" />}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          disabled
-                          className="h-11 rounded-full border-white/15 bg-white/[0.04] text-foreground"
-                        >
-                          Contact still protected
-                        </Button>
+                        {isUnlocked ? (
+                          <>
+                            <Button asChild className="h-11 rounded-full bg-primary px-5 font-semibold text-primary-foreground hover:bg-primary/90">
+                              <Link href={chatHref}>
+                                Open chat
+                                <ArrowUpRight className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="h-11 rounded-full border-emerald-500/25 bg-emerald-500/12 text-emerald-100"
+                              disabled
+                            >
+                              Photo unlocked
+                            </Button>
+                          </>
+                        ) : hasPendingIncoming ? (
+                          <>
+                            <Button asChild className="h-11 rounded-full bg-primary px-5 font-semibold text-primary-foreground hover:bg-primary/90">
+                              <Link href="/dashboard">
+                                Respond in dashboard
+                                <ArrowUpRight className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                            <Button
+                              variant="outline"
+                              disabled
+                              className="h-11 rounded-full border-white/15 bg-white/[0.04] text-foreground"
+                            >
+                              Waiting for your decision
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button 
+                              className="h-11 rounded-full bg-primary px-5 font-semibold text-primary-foreground opacity-90"
+                              onClick={handleRequest}
+                              disabled={!user || requestState !== "idle" || hasPendingOutgoing}
+                            >
+                              {requestState === "loading"
+                                ? "Sending Request..."
+                                : hasPendingOutgoing || requestState === "sent"
+                                  ? "Request Sent"
+                                  : "Request introduction"}
+                              {!hasPendingOutgoing && requestState === "idle" && <LockKeyhole className="ml-2 h-4 w-4" />}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              disabled
+                              className="h-11 rounded-full border-white/15 bg-white/[0.04] text-foreground"
+                            >
+                              Contact still protected
+                            </Button>
+                          </>
+                        )}
                       </>
                     )}
                   </div>
@@ -577,7 +712,9 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                         <p className="text-sm font-medium text-foreground">Contact visibility</p>
                       </div>
                       <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                        {draft.privacy.contactVisibility === "family-request"
+                        {isUnlocked
+                          ? "This approved introduction can continue in private chat."
+                          : draft.privacy.contactVisibility === "family-request"
                           ? "Contact is shared only through a family request flow."
                           : draft.privacy.contactVisibility === "mutual"
                             ? "Contact is released after mutual interest."
@@ -607,6 +744,30 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                   </div>
                 </DetailSection>
               </div>
+
+              {profile.source !== "current-user" && isUnlocked ? (
+                <DetailSection
+                  title="Unlocked contact details"
+                  description="Shown only after the introduction is approved and the contact rule allows it."
+                >
+                  {loadingContact ? (
+                    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4 text-sm text-muted-foreground">
+                      Loading contact details...
+                    </div>
+                  ) : contactReveal?.revealed ? (
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-4">
+                        <p className="text-sm font-medium text-foreground">{contactReveal.message}</p>
+                      </div>
+                      <DetailGrid items={contactReveal.fields} />
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4 text-sm leading-6 text-muted-foreground">
+                      {contactReveal?.message ?? "Contact details are not available right now."}
+                    </div>
+                  )}
+                </DetailSection>
+              ) : null}
             </div>
           </div>
         </div>

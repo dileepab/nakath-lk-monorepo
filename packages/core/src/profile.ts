@@ -53,11 +53,19 @@ export interface ProfileDraft {
     selfieStatus: VerificationState
     familyContactAllowed: boolean
   }
+  contact: {
+    personalPhone: string
+    whatsappNumber: string
+    familyContactName: string
+    familyContactPhone: string
+  }
   media: {
     profilePhotoUrl: string
     profilePhotoPath: string
-    nicDocumentUrl: string
-    nicDocumentPath: string
+    nicFrontUrl: string
+    nicFrontPath: string
+    nicBackUrl: string
+    nicBackPath: string
     selfieUrl: string
     selfiePath: string
   }
@@ -184,11 +192,19 @@ export const initialProfileDraft: ProfileDraft = {
     selfieStatus: "not-submitted",
     familyContactAllowed: true,
   },
+  contact: {
+    personalPhone: "",
+    whatsappNumber: "",
+    familyContactName: "",
+    familyContactPhone: "",
+  },
   media: {
     profilePhotoUrl: "",
     profilePhotoPath: "",
-    nicDocumentUrl: "",
-    nicDocumentPath: "",
+    nicFrontUrl: "",
+    nicFrontPath: "",
+    nicBackUrl: "",
+    nicBackPath: "",
     selfieUrl: "",
     selfiePath: "",
   },
@@ -219,6 +235,10 @@ export function mergeProfileDraft(candidate?: Partial<ProfileDraft> | null): Pro
     verification: {
       ...initialProfileDraft.verification,
       ...(candidate?.verification ?? {}),
+    },
+    contact: {
+      ...initialProfileDraft.contact,
+      ...(candidate?.contact ?? {}),
     },
     media: {
       ...initialProfileDraft.media,
@@ -282,13 +302,16 @@ export function birthDateFromAge(ageValue: string, currentBirthDate: string) {
   return formatDateInput(fallback)
 }
 
-function hasUploadedAsset(value: string) {
-  return Boolean(value.trim())
+export function hasUploadedAsset(...values: string[]) {
+  return values.some((value) => Boolean(value.trim()))
 }
 
 export function getVerificationStatus(draft: ProfileDraft, asset: VerificationAsset): VerificationState {
   const uploaded =
-    asset === "nic" ? hasUploadedAsset(draft.media.nicDocumentUrl) : hasUploadedAsset(draft.media.selfieUrl)
+    asset === "nic"
+      ? hasUploadedAsset(draft.media.nicFrontPath, draft.media.nicFrontUrl) &&
+        hasUploadedAsset(draft.media.nicBackPath, draft.media.nicBackUrl)
+      : hasUploadedAsset(draft.media.selfiePath, draft.media.selfieUrl)
   const stored = asset === "nic" ? draft.verification.nicStatus : draft.verification.selfieStatus
 
   if (!uploaded) return "not-submitted"

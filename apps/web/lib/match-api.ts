@@ -1,36 +1,42 @@
-import { collection, doc, setDoc, getDocs, query, where, updateDoc } from "firebase/firestore"
+import { collection, getDocs, query, where } from "firebase/firestore"
 import { getFirebaseDb, isFirebaseConfigured } from "./firebase-client"
 import { type MatchRequest, type MatchStatus } from "@acme/core"
 
-export async function sendMatchRequest(senderId: string, receiverId: string): Promise<MatchRequest> {
+export async function sendMatchRequest(idToken: string, receiverId: string): Promise<MatchRequest> {
   if (!isFirebaseConfigured()) throw new Error("Firebase is not configured")
-  
-  const db = getFirebaseDb()
-  const customId = `${senderId}_${receiverId}`
-  const docRef = doc(collection(db, "matches"), customId)
-  
-  const request: MatchRequest = {
-    id: customId,
-    senderId,
-    receiverId,
-    status: "pending",
-    createdAt: Date.now(),
+
+  const response = await fetch("/api/matches", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({ receiverId }),
+  })
+
+  if (!response.ok) {
+    throw new Error("Could not send match request.")
   }
 
-  await setDoc(docRef, request, { merge: true })
-  return request
+  const payload = (await response.json()) as { match: MatchRequest }
+  return payload.match
 }
 
-export async function updateMatchStatus(matchId: string, newStatus: MatchStatus): Promise<void> {
+export async function updateMatchStatus(idToken: string, matchId: string, newStatus: MatchStatus): Promise<void> {
   if (!isFirebaseConfigured()) throw new Error("Firebase is not configured")
-  
-  const db = getFirebaseDb()
-  const docRef = doc(db, "matches", matchId)
-  
-  await updateDoc(docRef, {
-    status: newStatus,
-    updatedAt: Date.now()
+
+  const response = await fetch(`/api/matches/${matchId}/status`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({ newStatus }),
   })
+
+  if (!response.ok) {
+    throw new Error("Could not update match status.")
+  }
 }
 
 export async function getReceivedMatches(userId: string): Promise<MatchRequest[]> {

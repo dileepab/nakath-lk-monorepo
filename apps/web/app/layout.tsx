@@ -13,6 +13,8 @@ export const metadata: Metadata = {
   title: 'Nakath.lk | Verified Sri Lankan Matrimony',
   description:
     'A trust-first Sri Lankan matrimony platform with biodata PDFs, instant Porondam, verification, and privacy controls for individuals and families.',
+  manifest: '/manifest.json',
+  themeColor: '#0B0B0C',
   icons: {
     icon: [
       {

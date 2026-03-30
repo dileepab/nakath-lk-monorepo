@@ -3,6 +3,7 @@
 import { LockKeyhole, ShieldCheck } from "lucide-react"
 
 import { type PhotoVisibility } from "@acme/core"
+import { useResolvedMediaUrl } from "@/lib/use-resolved-media-url"
 import { cn } from "@/lib/utils"
 
 function visibilityCopy(visibility: PhotoVisibility) {
@@ -31,20 +32,31 @@ function visibilityCopy(visibility: PhotoVisibility) {
 
 export function ProfilePhotoCard({
   photoUrl,
+  photoPath,
   displayName,
   visibility,
+  unlocked = false,
   className,
   compact = false,
 }: {
   photoUrl: string
+  photoPath?: string
   displayName: string
   visibility: PhotoVisibility
+  unlocked?: boolean
   className?: string
   compact?: boolean
 }) {
-  const copy = visibilityCopy(visibility)
+  const copy = unlocked
+    ? {
+        badge: "Unlocked",
+        title: "Photo is now visible",
+        body: "This match is approved, so the profile photo is available in full.",
+      }
+    : visibilityCopy(visibility)
+  const resolvedPhotoUrl = useResolvedMediaUrl(photoPath, photoUrl)
 
-  if (!photoUrl) {
+  if (!resolvedPhotoUrl) {
     return (
       <div
         className={cn(
@@ -64,7 +76,7 @@ export function ProfilePhotoCard({
     )
   }
 
-  if (visibility === "family") {
+  if (!unlocked && visibility === "family") {
     return (
       <div
         className={cn(
@@ -89,17 +101,19 @@ export function ProfilePhotoCard({
   return (
     <div
       className={cn(
-        "group relative overflow-hidden rounded-[24px] border border-white/10",
-        compact ? "h-44 w-36" : "h-64 w-full",
-        className,
+          "group relative overflow-hidden rounded-[24px] border border-white/10",
+          compact ? "h-44 w-36" : "h-64 w-full",
+          className,
       )}
     >
       <img
-        src={photoUrl}
+        src={resolvedPhotoUrl}
         alt={displayName}
         className={cn(
           "h-full w-full object-cover transition-transform duration-500",
-          visibility === "blurred"
+          unlocked
+            ? "scale-100 blur-0 brightness-100"
+            : visibility === "blurred"
             ? "scale-105 blur-xl brightness-[0.72]"
             : "scale-[1.03] blur-md brightness-[0.82]",
         )}

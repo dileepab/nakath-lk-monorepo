@@ -1,79 +1,285 @@
 # Nakath.lk Matrimony Platform
 
-A modern, highly-secure, and culturally accurate matchmaking platform designed specifically for the Sri Lankan market. This application aims to outperform traditional classifieds (like Poruwa) by deeply integrating astrological matching algorithms, zero-compromise privacy settings, and a premium "Life After Marriage" alignment score.
+A trust-first Sri Lankan matrimony platform focused on biodata sharing, profile privacy, verification, and culturally aware compatibility scoring.
 
-## 🏗 System Architecture
+This README reflects the current repository state. A few areas in the product are still prototype-grade, especially AI-assisted verification, push notifications, and video/chat enhancements, so this document keeps those distinctions explicit.
 
-This project is built as a highly scalable **Turborepo** Monorepo. This allows the Web App, Mobile App, and Backend services to share identical TypeScript types, business logic, and astrological algorithms without duplication.
+## System Architecture
 
-- **`packages/core`**: The brain of the application. Contains all strictly-typed schemas (`ProfileDraft`, `MatchRequest`), Astrology Logic (`Rahu Kaalaya` engines, `Nakath` options), and the proprietary `Porondam` Matching Calculator.
-- **`apps/web`**: The Next.js 14 web application. Features server-rendered pages wrapped in React `<Suspense>`, Tailwind CSS for styling, Framer Motion for premium micro-animations, and full Firebase integrations.
-- **`apps/mobile`** *(Pending)*: The future Expo/React Native companion application for iOS and Android.
+This repo is a Turborepo monorepo with shared business logic in `packages/core` and the current product surface in `apps/web`.
 
-### Tech Stack
-- **Frameworks**: Next.js, React, Tailwind CSS, Framer Motion
-- **Tooling**: Turborepo, TypeScript, ESLint 
-- **Backend & Database**: Firebase Authentication, Firestore (NoSQL), Firebase Storage
-- **Security**: Strictly scoped `firestore.rules` for peer-to-peer data protection.
+- `packages/core`
+  Shared profile types, fixtures, biodata helpers, horoscope rules, Porondam scoring logic, and other domain utilities.
+- `apps/web`
+  Next.js `16.2.0` web application using React `19`, Tailwind CSS, Framer Motion, Firebase client SDKs, and selected server routes backed by Firebase Admin.
+- `apps/mobile`
+  Not present yet. Mobile is still a roadmap item, not an active workspace in this repo.
 
----
+## Tech Stack
 
-## ✅ Completed Features (Web MVP)
+- Frameworks: Next.js, React, Tailwind CSS, Framer Motion
+- Tooling: Turborepo, TypeScript, npm workspaces
+- Data layer: Firebase Authentication, Firestore, Firebase Storage
+- Server integrations: Firebase Admin, OpenAI SDK, AWS Rekognition, LiveKit
 
-We have successfully built a fully functioning Minimum Viable Product (MVP) ready for beta testers:
+## Current Product Areas
 
-### 1. The Dynamic Biodata Builder
-A comprehensive, multi-step profile generator capturing everything from localized astrological data (Lagna, Nakath, exact Birth Time/Place) to family setups (Siblings, Parents' Occupations).
-- Includes strict **Verification Uploads** (NIC and Selfie).
-- Introduces granular **Privacy Models** (e.g., Photos blurred until mutual interest, direct contact info hidden).
-- Exportable to a highly shareable, PDF-friendly layout.
+### Stable core flows
 
-### 2. The Auspicious Dashboard & Trust Center
-- **Rahu Kaalaya Engine**: A real-time, mathematically accurate dashboard clock alerting users to auspicious times based on Sri Lanka Standard Time.
-- **Admin Review Panel**: A dedicated backend dashboard (`/review`) for trusted reviewers to seamlessly verify submitted NICs against accompanying selfies.
+These areas are already part of the main product structure:
 
-### 3. The Match Request Engine
-- Replaced generic swipe features with a respectful **"Request Introduction"** pipeline. 
-- The Dashboard aggregates inbound intro requests where users can safely "Approve" or "Decline".
+- Biodata builder with profile basics, horoscope data, family context, partner preferences, privacy controls, and verification uploads
+- Biodata document / PDF-friendly view
+- Authenticated profile save/load with Firestore
+- Profile browser and profile detail pages
+- Porondam-style compatibility preview using internal rules and shared config
+- Reviewer workspace with protected reviewer/admin mode when Firebase Admin env and reviewer allowlists are configured
 
-### 4. Real-Time Glassmorphism Chat
-- Once a Match Request is approved, it unlocks the **`/messages`** portal.
-- Utilizing encrypted Firestore `onSnapshot` listeners, users can converse in a stunning real-time chat interface perfectly protected by strict database security rules—meaning users never have to hand out their Whatsapp numbers early.
+### Working but still prototype-grade
 
-### 5. "Life After Marriage" Alignment Score
-- To fix the fatal flaw of traditional matching (astrological alignment but cultural mismatch), the platform evaluates a secondary score: **The Lifestyle Percentage**.
-- Cross-references users on their *Migration Plans*, *Spouse Career Expectations*, and *Family Setup* (Nuclear vs Joint) preferences.
-- Displays a dual-score (e.g. `16/20 Porondam` & `100% Lifestyle`) prominently on all profile browsing cards.
+These features exist in the codebase, but they should be treated as in-progress rather than production-complete:
 
----
+- AI-assisted identity verification
+  Present in the web app, but the verification pipeline still needs tighter authorization and operational hardening before it should be treated as a trusted auto-approval system.
+- AI-generated chat icebreakers
+  Present behind a server route and OpenAI configuration, but still needs stronger access control and production tuning.
+- Video calling / family e-meet flow
+  LiveKit token generation and UI scaffolding are present, but this is not yet a production-hardened communication surface.
+- Push notifications / PWA support
+  Manifest, service worker, and notification prompt scaffolding exist, but this still depends on full Firebase Cloud Messaging configuration and real notification delivery flows.
 
-## 🚀 Future Integration Roadmap (The 'Poruwa-Killers')
+## Security Status
 
-The following features have been meticulously drafted to completely capture and dominate the market. They are ready for immediate implementation in subsequent sprints:
+Security is partially implemented, not fully complete.
 
-1. **AI "Auspicious" Icebreakers**: Connecting an LLM right into the `/messages` UI to scan both matched profiles and generate 3 highly targeted, culturally appropriate conversation starters to eliminate awkward first messages.
-2. **Audio "Anti-Catfish" Prompts**: Allowing users to upload a 10-second voice note answering a fun, cultural prompt (e.g., "My perfect Sunday..."). Helps build immense psychological trust before photos are even un-blurred.
-3. **React Native Mobile Expansion (`apps/mobile`)**: Bootstrapping the Expo codebase and injecting the exact same `@acme/core` logic to drop the application into the iOS App Store and Google Play instantly.
-4. **AI "Kenda" (Horoscope) Scanner**: Integrating Google Cloud Vision OCR so users can snap a photo of their physical, handwritten astrologer's report and instantly auto-fill their digital profile's planetary houses and Lagna.
-5. **The Secure "Family Room" (Built-in Video)**: Adding a WebRTC (Twilio/Daily.co) integration into the chat page allowing up to 4 people (Boy, Girl, Parents) to jump on an ephemeral 15-minute video call to safely digitize the traditional "first meeting."
+What is already in place:
 
----
+- Firebase Authentication for user sign-in
+- Firestore-backed user profile ownership patterns
+- Storage rules for `profiles/{userId}/...` ownership
+- Reviewer/admin role scaffolding using Firebase Admin plus email allowlists
+- Protected reviewer API routes for verification decisions
 
-## 🛠 Getting Started Locally
+What still needs hardening:
 
-1. Install dependencies from the root directory:
-   ```bash
-   npm install
-   ```
+- End-to-end verification that deployed Firestore and Storage rules match the new server-side assumptions
+- Privacy hardening around long-lived media download URLs and other prototype-era shortcuts
+- Removal of any remaining prototype-only shortcuts before production rollout
 
-2. Run the development server across all packages:
-   ```bash
-   npx turbo run dev
-   ```
+If you are evaluating this repo for launch readiness, treat the authentication and core profile flows as the strongest area, and treat AI/video/notification features as development-stage.
 
-3. Type-check and verify the production build:
-   ```bash
-   npx turbo run build
-   ```
+## Repository Layout
 
-*(Ensure the accompanying `.env.local` is fully populated with the Firebase Admin and Client credentials for the services to boot correctly).*
+```text
+apps/
+  web/          Next.js web app
+packages/
+  core/         Shared types, profile model, matching logic, astrology rules
+```
+
+## Local Development
+
+### 1. Install dependencies
+
+From the repo root:
+
+```bash
+npm install
+```
+
+### 2. Configure environment variables
+
+At minimum, `apps/web/.env.local` should include:
+
+#### Firebase client
+
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=
+```
+
+#### Firebase Admin
+
+```env
+FIREBASE_ADMIN_PROJECT_ID=
+FIREBASE_ADMIN_CLIENT_EMAIL=
+FIREBASE_ADMIN_PRIVATE_KEY=
+ADMIN_EMAILS=
+REVIEWER_EMAILS=
+```
+
+#### Optional integrations
+
+Only needed if you want those features active:
+
+```env
+AWS_REGION=
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+OPENAI_API_KEY=
+LIVEKIT_API_KEY=
+LIVEKIT_API_SECRET=
+LIVEKIT_URL=
+NEXT_PUBLIC_FIREBASE_VAPID_KEY=
+MOCK_AI_VERIFICATION=
+```
+
+### Feature flags and optional services
+
+You can bring up the main product with Firebase first, then add the heavier integrations one by one.
+
+#### Works with Firebase only
+
+- sign-in and authenticated sessions
+- biodata builder and biodata document view
+- Firestore-backed profile save/load
+- profile browser and profile detail pages
+- Storage-backed photo, NIC, and selfie uploads
+- reviewer workspace shell and reviewer/admin role gating
+- Porondam preview and horoscope rules from `packages/core`
+
+#### Requires extra setup
+
+- push notifications
+  Requires `NEXT_PUBLIC_FIREBASE_VAPID_KEY` and a complete Firebase Cloud Messaging setup.
+- AI-assisted verification
+  Requires AWS Rekognition credentials unless `MOCK_AI_VERIFICATION=true`.
+- AI icebreakers
+  Requires `OPENAI_API_KEY`.
+- video calling
+  Requires `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, and `LIVEKIT_URL`.
+
+#### Recommended local mode
+
+For the smoothest local setup:
+
+1. Configure Firebase first
+2. Keep `MOCK_AI_VERIFICATION=true`
+3. Leave OpenAI, LiveKit, and FCM blank until the core product flows are stable
+
+### 3. Start the app
+
+From the repo root:
+
+```bash
+npm run dev
+```
+
+Or only the web app:
+
+```bash
+npm run dev --workspace web
+```
+
+### 4. Build
+
+From the repo root:
+
+```bash
+npm run build
+```
+
+## Recommended Setup Order
+
+If you are bringing the project up on a new machine, this order will save time:
+
+1. Configure Firebase client env
+2. Configure Firebase Auth, Firestore, and Storage
+3. Confirm biodata save/load works
+4. Add Firebase Admin env and reviewer allowlists
+5. Confirm reviewer workspace works
+6. Add optional OpenAI / AWS / LiveKit / FCM integrations only after the core app is stable
+7. Deploy both `firestore.rules` and `storage.rules`
+
+## Troubleshooting
+
+### Firebase sign-in shows `auth/unauthorized-domain`
+
+Add your local dev host in Firebase Console:
+
+1. Open `Authentication`
+2. Go to `Settings`
+3. Add both `127.0.0.1` and `localhost` under authorized domains if you use them locally
+
+These are treated as different origins by the browser and by Firebase Auth.
+
+### `/review` shows setup-required
+
+This usually means the Firebase Admin env is incomplete. Check:
+
+- `FIREBASE_ADMIN_PROJECT_ID`
+- `FIREBASE_ADMIN_CLIENT_EMAIL`
+- `FIREBASE_ADMIN_PRIVATE_KEY`
+- `ADMIN_EMAILS` or `REVIEWER_EMAILS`
+
+After updating env values, restart the dev server.
+
+### `/review` shows access-denied
+
+The signed-in account is not on the reviewer allowlist yet.
+
+Add the exact Firebase Auth email to one of:
+
+- `ADMIN_EMAILS`
+- `REVIEWER_EMAILS`
+
+Then restart the app and sign in again if needed.
+
+### Push notifications do not enable
+
+Check the following:
+
+- `NEXT_PUBLIC_FIREBASE_VAPID_KEY` is set
+- Firebase Cloud Messaging is configured for the project
+- the browser has not permanently blocked notifications
+- the current user already has a Firestore profile document
+
+Without a valid VAPID key and FCM setup, the notification prompt UI may render but token registration will fail.
+
+### AI verification is not running
+
+This is usually one of two cases:
+
+- `MOCK_AI_VERIFICATION=true`
+  The app stays in local mock mode and does not call AWS Rekognition.
+- AWS credentials are missing
+  Set `AWS_REGION`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY`.
+
+For local development, keeping mock mode enabled is the intended default.
+
+### AI icebreakers do not generate
+
+Check:
+
+- `OPENAI_API_KEY` is set
+- the app is not relying on mock mode unexpectedly
+- the related match and profile documents exist in Firestore
+
+If `MOCK_AI_VERIFICATION=true`, the route currently also uses mock responses for local testing.
+
+### Video room token generation fails
+
+Check:
+
+- `LIVEKIT_API_KEY`
+- `LIVEKIT_API_SECRET`
+- `LIVEKIT_URL`
+
+Without those values, the video route is only safe to use in mock/local scenarios.
+
+## Roadmap Direction
+
+The product direction still includes:
+
+- stronger reviewer/admin operations
+- hardened verification workflows
+- better match/introduction lifecycle management
+- mobile expansion later
+- richer astrology and OCR-assisted horoscope tooling later
+
+Those are valid roadmap items, but they are not all production-ready in the current branch.

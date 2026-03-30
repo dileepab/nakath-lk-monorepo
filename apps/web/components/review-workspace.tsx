@@ -15,13 +15,15 @@ import {
 
 import { useAuth } from "@/components/auth-provider"
 import { AstrologyBackground } from "@/components/astrology-background"
+import { MediaPreviewDialog } from "@/components/media-preview-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { browseProfileFixtures, getBrowseProfileFixture } from "@acme/core"
 import { horoscopeRuleConfig } from "@acme/core"
 import { calculatePorondamPreview } from "@acme/core"
-import { getVerificationStatus, type ProfileDraft, type VerificationState } from "@acme/core"
+import { getVerificationStatus, hasUploadedAsset, type ProfileDraft, type VerificationState } from "@acme/core"
+import { useResolvedMediaUrl } from "@/lib/use-resolved-media-url"
 import { cn } from "@/lib/utils"
 
 type ReviewerRole = "user" | "reviewer" | "admin"
@@ -296,6 +298,18 @@ export function ReviewWorkspace() {
     if (!draft || !selectedFixture) return null
     return calculatePorondamPreview(draft, selectedFixture.draft)
   }, [draft, selectedFixture])
+  const nicStatus = draft ? getVerificationStatus(draft, "nic") : "not-submitted"
+  const selfieStatus = draft ? getVerificationStatus(draft, "selfie") : "not-submitted"
+  const hasNic = Boolean(
+    draft &&
+      hasUploadedAsset(draft.media.nicFrontPath, draft.media.nicFrontUrl) &&
+      hasUploadedAsset(draft.media.nicBackPath, draft.media.nicBackUrl),
+  )
+  const hasSelfie = Boolean(draft && hasUploadedAsset(draft.media.selfiePath, draft.media.selfieUrl))
+  const resolvedProfilePhotoUrl = useResolvedMediaUrl(draft?.media.profilePhotoPath, draft?.media.profilePhotoUrl)
+  const resolvedNicFrontUrl = useResolvedMediaUrl(draft?.media.nicFrontPath, draft?.media.nicFrontUrl)
+  const resolvedNicBackUrl = useResolvedMediaUrl(draft?.media.nicBackPath, draft?.media.nicBackUrl)
+  const resolvedSelfieUrl = useResolvedMediaUrl(draft?.media.selfiePath, draft?.media.selfieUrl)
 
   async function updateVerification(field: "nicStatus" | "selfieStatus", value: VerificationState) {
     if (!draft || !selectedProfileId || !user) return
@@ -407,11 +421,6 @@ export function ReviewWorkspace() {
     )
   }
 
-  const nicStatus = draft ? getVerificationStatus(draft, "nic") : "not-submitted"
-  const selfieStatus = draft ? getVerificationStatus(draft, "selfie") : "not-submitted"
-  const hasNic = Boolean(draft?.media.nicDocumentUrl)
-  const hasSelfie = Boolean(draft?.media.selfieUrl)
-
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0B0B0C] text-[#F9F9F7]">
       <AstrologyBackground />
@@ -488,36 +497,53 @@ export function ReviewWorkspace() {
                 <CardContent className="space-y-5">
                   {draft ? (
                     <>
-                      <div className="grid gap-4 md:grid-cols-3">
+                      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                         {[
                           {
                             title: "Profile photo",
-                            url: draft.media.profilePhotoUrl,
-                            status: draft.media.profilePhotoUrl ? "Uploaded" : "Missing",
+                            url: resolvedProfilePhotoUrl,
+                            status: hasUploadedAsset(draft.media.profilePhotoPath, draft.media.profilePhotoUrl)
+                              ? "Uploaded"
+                              : "Missing",
+                            path: draft.media.profilePhotoPath,
+                            kind: "image" as const,
                           },
                           {
-                            title: "NIC document",
-                            url: draft.media.nicDocumentUrl,
-                            status: hasNic ? "Uploaded" : "Missing",
+                            title: "NIC front",
+                            url: resolvedNicFrontUrl,
+                            status: hasUploadedAsset(draft.media.nicFrontPath, draft.media.nicFrontUrl)
+                              ? "Uploaded"
+                              : "Missing",
+                            path: draft.media.nicFrontPath,
+                            kind: "image" as const,
+                          },
+                          {
+                            title: "NIC back",
+                            url: resolvedNicBackUrl,
+                            status: hasUploadedAsset(draft.media.nicBackPath, draft.media.nicBackUrl)
+                              ? "Uploaded"
+                              : "Missing",
+                            path: draft.media.nicBackPath,
+                            kind: "image" as const,
                           },
                           {
                             title: "Verification selfie",
-                            url: draft.media.selfieUrl,
+                            url: resolvedSelfieUrl,
                             status: hasSelfie ? "Uploaded" : "Missing",
+                            path: draft.media.selfiePath,
+                            kind: "image" as const,
                           },
                         ].map((asset) => (
                           <div key={asset.title} className="rounded-3xl border border-white/10 bg-black/20 p-5">
                             <p className="text-sm font-semibold text-foreground">{asset.title}</p>
                             <p className="mt-2 text-xs uppercase tracking-[0.22em] text-muted-foreground">{asset.status}</p>
-                            {asset.url ? (
-                              <a
-                                href={asset.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="mt-4 inline-flex text-sm font-medium text-primary transition hover:text-primary/85"
-                              >
-                                Open file
-                              </a>
+                            {asset.path || asset.url ? (
+                              <MediaPreviewDialog
+                                title={asset.title}
+                                path={asset.path}
+                                fallbackUrl={asset.url}
+                                kind={asset.kind}
+                              />
                             ) : (
                               <p className="mt-4 text-sm leading-6 text-muted-foreground">No upload available yet.</p>
                             )}

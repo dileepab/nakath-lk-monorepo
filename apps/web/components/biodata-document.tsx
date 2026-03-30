@@ -79,6 +79,7 @@ export function BiodataDocument({ draft }: { draft: ProfileDraft }) {
           <div className="mt-6 flex justify-start md:justify-end">
             <ProfilePhotoCard
               photoUrl={draft.media.profilePhotoUrl}
+              photoPath={draft.media.profilePhotoPath}
               displayName={displayName}
               visibility={draft.privacy.photoVisibility}
               compact

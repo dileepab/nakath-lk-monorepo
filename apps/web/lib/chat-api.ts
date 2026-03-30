@@ -1,4 +1,4 @@
-import { collection, doc, setDoc, query, orderBy, onSnapshot } from "firebase/firestore"
+import { collection, onSnapshot, orderBy, query } from "firebase/firestore"
 import { getFirebaseDb, isFirebaseConfigured } from "./firebase-client"
 import { type ChatMessage } from "@acme/core"
 
@@ -17,18 +17,21 @@ export function subscribeToMessages(matchId: string, callback: (messages: ChatMe
   })
 }
 
-export async function sendMessage(matchId: string, senderId: string, text: string) {
+export async function sendMessage(idToken: string, matchId: string, text: string) {
   if (!isFirebaseConfigured() || !text.trim()) return
 
-  const db = getFirebaseDb()
-  const msgRef = doc(collection(db, "matches", matchId, "messages"))
-  const message: ChatMessage = {
-    id: msgRef.id,
-    matchId,
-    senderId,
-    text: text.trim(),
-    createdAt: Date.now()
+  const response = await fetch(`/api/matches/${matchId}/messages`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({
+      text: text.trim(),
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error("Could not send message.")
   }
-  
-  await setDoc(msgRef, message)
 }

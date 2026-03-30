@@ -11,18 +11,17 @@ import {
   CloudUpload,
   CreditCard,
   Database,
-  FileText,
   HeartHandshake,
   ImageIcon,
   LoaderCircle,
   LockKeyhole,
   LogOut,
-  ShieldCheck,
-  Sparkles,
 } from "lucide-react"
 
 import { useAuth } from "@/components/auth-provider"
 import { AstrologyBackground } from "@/components/astrology-background"
+import { ImageEditDialog } from "@/components/image-edit-dialog"
+import { MediaPreviewDialog } from "@/components/media-preview-dialog"
 import { ProfilePhotoCard } from "@/components/profile-photo-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -48,6 +47,7 @@ import {
   ageFromBirthDate,
   birthDateFromAge,
   getVerificationStatus,
+  hasUploadedAsset,
   isFullyVerified,
   mergeProfileDraft,
   type BiodataShareMode,
@@ -58,30 +58,18 @@ import {
 } from "@acme/core"
 import {
   isFirebaseConfigured,
-  loadProfileDraftFromBackend,
+  loadOwnProfileDraftFromBackend,
   saveProfileDraftToBackend,
 } from "@/lib/profile-store"
 import { useBiodataStore } from "@/lib/use-biodata-store"
-import { uploadProfileAsset, type ProfileAssetKind } from "@/lib/storage-store"
+import { useResolvedMediaUrl } from "@/lib/use-resolved-media-url"
+import {
+  allowedProfileAssetTypesLabel,
+  isAllowedProfileAssetFile,
+  uploadProfileAsset,
+  type ProfileAssetKind,
+} from "@/lib/storage-store"
 import { cn } from "@/lib/utils"
-
-const quickSignals = [
-  {
-    icon: FileText,
-    title: "PDF-first structure",
-    body: "Start with a biodata people can actually share on WhatsApp or with parents.",
-  },
-  {
-    icon: Sparkles,
-    title: "Porondam-ready details",
-    body: "Nakath, lagna, and birth details are captured in the same flow.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Trust settings built in",
-    body: "Privacy and verification live inside the profile model from day one.",
-  },
-]
 
 const photoVisibilityOptions: Array<{
   value: PhotoVisibility
@@ -272,6 +260,10 @@ function statusClasses(status: "not-submitted" | "submitted" | "verified") {
   return "border-white/10 bg-white/[0.04] text-muted-foreground"
 }
 
+function assetPreviewKind(_kind: ProfileAssetKind): "image" | "document" {
+  return "image"
+}
+
 function profileCompletion(draft: ProfileDraft) {
   const checks = [
     draft.basics.firstName,
@@ -306,22 +298,15 @@ const assetCards: Array<{
   {
     kind: "profile-photo",
     title: "Profile photo",
-    description: "Used for the biodata document now, and later for blurred or unlocked profile views.",
-    accept: "image/*",
+    description: "Used for the biodata document now, and later for blurred or unlocked profile views. One image only.",
+    accept: "image/jpeg,image/png,image/webp,image/heic,image/heif",
     icon: ImageIcon,
-  },
-  {
-    kind: "nic-document",
-    title: "NIC document",
-    description: "Supports the trust workflow and gives the verification team something to review.",
-    accept: "image/*,.pdf",
-    icon: CreditCard,
   },
   {
     kind: "selfie",
     title: "Verification selfie",
-    description: "Lets us match the account holder to the submitted identity document later.",
-    accept: "image/*",
+    description: "Lets us match the account holder to the submitted identity document later. One image only.",
+    accept: "image/jpeg,image/png,image/webp,image/heic,image/heif",
     icon: Camera,
   },
 ]
@@ -336,6 +321,7 @@ export function BiodataBuilder() {
   >("checking")
   const [backendMessage, setBackendMessage] = useState("Checking Firebase configuration...")
   const [uploadingAsset, setUploadingAsset] = useState<ProfileAssetKind | null>(null)
+  const [pendingEditorUpload, setPendingEditorUpload] = useState<{ kind: ProfileAssetKind; file: File } | null>(null)
   const [uploadMessage, setUploadMessage] = useState("Upload profile media after signing in to start the verification path.")
   const previewDraft = useDeferredValue(draft)
 
@@ -355,7 +341,7 @@ export function BiodataBuilder() {
 
     if (!backendEnabled) {
       setBackendStatus("disabled")
-      setBackendMessage("Firebase env vars are not configured yet. Working in local draft mode.")
+      setBackendMessage("Saving is unavailable right now. You can continue filling the form.")
       return
     }
 
@@ -367,21 +353,21 @@ export function BiodataBuilder() {
 
     if (!user) {
       setBackendStatus("ready")
-      setBackendMessage("Firebase is ready. Sign in to save this biodata under your account.")
+      setBackendMessage("Sign in to save your profile.")
       return
     }
 
     let cancelled = false
 
-    void loadProfileDraftFromBackend(user.uid)
+    void loadOwnProfileDraftFromBackend(user.uid)
       .then((remoteDraft) => {
         if (cancelled) return
 
         if (remoteDraft) {
           setDraft(syncVerificationState(remoteDraft))
-          setBackendMessage("Loaded the latest biodata draft from Firestore.")
+          setBackendMessage("Loaded your latest saved profile.")
         } else {
-          setBackendMessage("No Firestore profile exists for this account yet. Save to create one.")
+          setBackendMessage("No saved profile yet.")
         }
 
         setBackendStatus("ready")
@@ -390,7 +376,7 @@ export function BiodataBuilder() {
         if (cancelled) return
 
         setBackendStatus("error")
-        setBackendMessage("Could not load the Firestore profile. Local draft is still available.")
+        setBackendMessage("Could not load your saved profile.")
       })
 
     return () => {
@@ -413,21 +399,21 @@ export function BiodataBuilder() {
       const syncedDraft = syncVerificationState(draft)
 
       setBackendStatus("saving")
-      setBackendMessage("Saving biodata to Firestore...")
+      setBackendMessage("Saving your profile...")
 
       setDraft(syncedDraft)
       await saveProfileDraftToBackend(user.uid, syncedDraft)
       setBackendStatus("saved")
-      setBackendMessage("Biodata saved to Firestore under your signed-in account.")
+      setBackendMessage("Profile saved.")
     } catch {
       setBackendStatus("error")
-      setBackendMessage("Save failed. Check Firebase config and Firestore rules, then try again.")
+      setBackendMessage("Could not save your profile.")
     }
   }
 
   async function handleAssetUpload(kind: ProfileAssetKind, file: File) {
     if (!backendAvailable) {
-      setUploadMessage("Firebase Storage is not configured yet, so uploads are still disabled.")
+      setUploadMessage("Uploads are unavailable right now.")
       return
     }
 
@@ -436,11 +422,18 @@ export function BiodataBuilder() {
       return
     }
 
+    if (!isAllowedProfileAssetFile(file)) {
+      setBackendStatus("error")
+      setBackendMessage(`Only ${allowedProfileAssetTypesLabel()} images are allowed.`)
+      setUploadMessage("This file type is not supported for profile uploads.")
+      return
+    }
+
     try {
       setUploadingAsset(kind)
       setUploadMessage(`Uploading ${kind.replace("-", " ")}...`)
       setBackendStatus("saving")
-      setBackendMessage("Uploading file to Firebase Storage and syncing the profile...")
+      setBackendMessage("Uploading file...")
 
       const { path, url } = await uploadProfileAsset(user.uid, kind, file)
       let nextDraft = draft
@@ -453,16 +446,22 @@ export function BiodataBuilder() {
                 profilePhotoUrl: url,
                 profilePhotoPath: path,
               }
-            : kind === "nic-document"
+            : kind === "nic-front"
               ? {
                   ...current.media,
-                  nicDocumentUrl: url,
-                  nicDocumentPath: path,
+                  nicFrontUrl: url,
+                  nicFrontPath: path,
                 }
-              : {
-                  ...current.media,
-                  selfieUrl: url,
-                  selfiePath: path,
+              : kind === "nic-back"
+                ? {
+                    ...current.media,
+                    nicBackUrl: url,
+                    nicBackPath: path,
+                  }
+                : {
+                    ...current.media,
+                    selfieUrl: url,
+                    selfiePath: path,
                 }
 
         nextDraft = syncVerificationState({
@@ -474,49 +473,161 @@ export function BiodataBuilder() {
       })
 
       await saveProfileDraftToBackend(user.uid, nextDraft)
+      
+      if (
+        hasUploadedAsset(nextDraft.media.nicFrontPath, nextDraft.media.nicFrontUrl) &&
+        hasUploadedAsset(nextDraft.media.nicBackPath, nextDraft.media.nicBackUrl) &&
+        hasUploadedAsset(nextDraft.media.selfiePath, nextDraft.media.selfieUrl)
+      ) {
+        setUploadMessage("Checking verification...")
+        try {
+          const idToken = await user.getIdToken()
+          const res = await fetch("/api/verify-identity", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${idToken}`,
+            },
+          })
+          const verifyData = await res.json()
+          if (verifyData.verified) {
+             setUploadMessage(`Verification complete: ${verifyData.confidence.toFixed(1)}% match.`)
+             const updated = await loadOwnProfileDraftFromBackend(user.uid)
+             if (updated) setDraft(updated)
+          } else {
+             setUploadMessage("Verification submitted for review.")
+          }
+        } catch {
+             setUploadMessage("Verification submitted for review.")
+        }
+      } else {
+        setUploadMessage(`${file.name} uploaded.`)
+      }
+
       setBackendStatus("saved")
-      setBackendMessage("Profile media uploaded and biodata synced to Firestore.")
-      setUploadMessage(`${file.name} is uploaded and linked to this biodata.`)
+      setBackendMessage("Upload complete.")
     } catch {
       setBackendStatus("error")
-      setBackendMessage("Upload failed. Check Firebase Storage setup and try again.")
-      setUploadMessage("The file could not be uploaded. Firebase Storage rules or setup may still need attention.")
+      setBackendMessage("Upload failed.")
+      setUploadMessage(`Only ${allowedProfileAssetTypesLabel()} images are allowed.`)
     } finally {
       setUploadingAsset(null)
     }
   }
 
+  function handleSelectedFile(kind: ProfileAssetKind, file: File) {
+    if (!isAllowedProfileAssetFile(file)) {
+      setBackendStatus("error")
+      setBackendMessage(`Only ${allowedProfileAssetTypesLabel()} images are allowed.`)
+      setUploadMessage("This file type is not supported for profile uploads.")
+      return
+    }
+
+    setPendingEditorUpload({ kind, file })
+  }
+
+  function renderUploadControl(asset: {
+    kind: ProfileAssetKind
+    accept: string
+    label: string
+    helper: string
+  }) {
+    const isUploading = uploadingAsset === asset.kind
+
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-medium text-foreground">{asset.label}</p>
+          <span className="text-xs text-muted-foreground">{asset.helper}</span>
+        </div>
+        <div className="relative overflow-hidden rounded-xl border border-white/10 bg-black/20">
+          <input
+            type="file"
+            id={`file-upload-${asset.kind}`}
+            accept={asset.accept}
+            disabled={!user || !backendAvailable || isUploading}
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              if (file) {
+                handleSelectedFile(asset.kind, file)
+              }
+              event.target.value = ""
+            }}
+            className="absolute inset-0 z-10 cursor-pointer opacity-0 disabled:cursor-not-allowed"
+          />
+          <div className="flex items-center gap-3 px-4 py-2.5">
+            <div className="flex h-8 items-center justify-center rounded-full bg-primary px-4 text-xs font-semibold text-primary-foreground">
+              Choose file
+            </div>
+            <span className="flex-1 truncate text-xs text-muted-foreground">
+              {isUploading ? "Uploading..." : "No file chosen"}
+            </span>
+          </div>
+        </div>
+        <p className="text-xs leading-5 text-muted-foreground">
+          {isUploading
+            ? "Upload in progress. Visuals will sync automatically."
+            : user
+              ? "Signed in and ready for upload."
+              : "Sign in first to enable uploads."}
+        </p>
+      </div>
+    )
+  }
+
   function assetMeta(kind: ProfileAssetKind) {
     if (kind === "profile-photo") {
       return {
-        url: draft.media.profilePhotoUrl,
+        url: resolvedProfilePhotoUrl,
         path: draft.media.profilePhotoPath,
         status: "Ready for biodata preview",
       }
     }
 
-    if (kind === "nic-document") {
+    if (kind === "nic-front") {
       return {
-        url: draft.media.nicDocumentUrl,
-        path: draft.media.nicDocumentPath,
-        status: statusLabel(getVerificationStatus(draft, "nic")),
+        url: resolvedNicFrontUrl,
+        path: draft.media.nicFrontPath,
+        status: hasUploadedAsset(draft.media.nicFrontPath, draft.media.nicFrontUrl)
+          ? "Front uploaded"
+          : "Front missing",
+      }
+    }
+
+    if (kind === "nic-back") {
+      return {
+        url: resolvedNicBackUrl,
+        path: draft.media.nicBackPath,
+        status: hasUploadedAsset(draft.media.nicBackPath, draft.media.nicBackUrl)
+          ? "Back uploaded"
+          : "Back missing",
       }
     }
 
     return {
-      url: draft.media.selfieUrl,
+      url: resolvedSelfieUrl,
       path: draft.media.selfiePath,
       status: statusLabel(getVerificationStatus(draft, "selfie")),
     }
   }
 
+  const resolvedProfilePhotoUrl = useResolvedMediaUrl(draft.media.profilePhotoPath, draft.media.profilePhotoUrl)
+  const resolvedNicFrontUrl = useResolvedMediaUrl(draft.media.nicFrontPath, draft.media.nicFrontUrl)
+  const resolvedNicBackUrl = useResolvedMediaUrl(draft.media.nicBackPath, draft.media.nicBackUrl)
+  const resolvedSelfieUrl = useResolvedMediaUrl(draft.media.selfiePath, draft.media.selfieUrl)
+  const resolvedPreviewPhotoUrl = useResolvedMediaUrl(
+    previewDraft.media.profilePhotoPath,
+    previewDraft.media.profilePhotoUrl,
+  )
   const completion = profileCompletion(previewDraft)
   const displayAge = ageFromBirthDate(previewDraft.horoscope.birthDate) ?? previewDraft.basics.age
   const documentHref = user ? `/biodata/document?profileId=${user.uid}` : "/biodata/document"
   const nicStatus = getVerificationStatus(previewDraft, "nic")
   const selfieStatus = getVerificationStatus(previewDraft, "selfie")
   const verificationReady = isFullyVerified(previewDraft)
-  const verificationPackReady = Boolean(previewDraft.media.nicDocumentUrl && previewDraft.media.selfieUrl)
+  const verificationPackReady =
+    hasUploadedAsset(previewDraft.media.nicFrontPath, previewDraft.media.nicFrontUrl) &&
+    hasUploadedAsset(previewDraft.media.nicBackPath, previewDraft.media.nicBackUrl) &&
+    hasUploadedAsset(previewDraft.media.selfiePath, previewDraft.media.selfieUrl)
   const horoscopeReady = Boolean(
     previewDraft.horoscope.birthDate &&
       previewDraft.horoscope.nakath &&
@@ -549,14 +660,13 @@ export function BiodataBuilder() {
 
             <div className="max-w-4xl">
               <p className="text-sm font-medium uppercase tracking-[0.3em] text-primary">
-                Product foundation
+                Biodata
               </p>
               <h1 className="mt-4 text-4xl font-semibold tracking-tight text-foreground md:text-5xl">
-                Build the biodata first, then layer in Porondam, privacy, and verification with real structure.
+                Create your profile and keep everything in one place.
               </h1>
               <p className="mt-5 max-w-3xl text-lg leading-8 text-muted-foreground">
-                This is the first roadmap feature turned into a real screen. We are capturing the profile fields the
-                PDF calls out, while previewing how the final biodata can feel inside the app.
+                Fill in your details, upload the required images, and prepare your share-ready biodata.
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -586,7 +696,7 @@ export function BiodataBuilder() {
                   ) : (
                     <>
                       <CloudUpload className="h-4 w-4" />
-                      Save to backend
+                      Save profile
                     </>
                   )}
                 </Button>
@@ -614,7 +724,7 @@ export function BiodataBuilder() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Database className="h-4 w-4 text-primary" />
-                    <p className="text-sm font-semibold text-foreground">Backend status</p>
+                    <p className="text-sm font-semibold text-foreground">Save status</p>
                   </div>
                   <Badge
                     variant="outline"
@@ -633,30 +743,9 @@ export function BiodataBuilder() {
                   </Badge>
                 </div>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground">{backendMessage}</p>
-                {user ? (
-                  <p className="mt-3 text-xs uppercase tracking-[0.22em] text-foreground/70">User id: {user.uid}</p>
-                ) : null}
               </div>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-3">
-              {quickSignals.map((signal) => (
-                <Card
-                  key={signal.title}
-                  className="border-white/10 bg-white/[0.035] shadow-[0_18px_60px_rgba(0,0,0,0.22)] backdrop-blur-xl"
-                >
-                  <CardContent className="flex gap-4 px-6 py-6">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10">
-                      <signal.icon className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">{signal.title}</p>
-                      <p className="mt-2 text-sm leading-6 text-muted-foreground">{signal.body}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
           </div>
 
           <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem]">
@@ -1142,6 +1231,73 @@ export function BiodataBuilder() {
                     />
                   </FieldShell>
 
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <FieldShell
+                      label="Phone number"
+                      hint="Shown only when your contact rule allows it after an approved match."
+                    >
+                      <Input
+                        value={draft.contact.personalPhone}
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            contact: { ...current.contact, personalPhone: event.target.value },
+                          }))
+                        }
+                        placeholder="+94 77 123 4567"
+                        className="border-white/10 bg-black/20"
+                      />
+                    </FieldShell>
+                    <FieldShell
+                      label="WhatsApp number"
+                      hint="Optional. If blank, only your main phone number can be shared."
+                    >
+                      <Input
+                        value={draft.contact.whatsappNumber}
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            contact: { ...current.contact, whatsappNumber: event.target.value },
+                          }))
+                        }
+                        placeholder="+94 77 123 4567"
+                        className="border-white/10 bg-black/20"
+                      />
+                    </FieldShell>
+                    <FieldShell
+                      label="Family contact name"
+                      hint="Used only when you choose family-request contact sharing."
+                    >
+                      <Input
+                        value={draft.contact.familyContactName}
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            contact: { ...current.contact, familyContactName: event.target.value },
+                          }))
+                        }
+                        placeholder="Parent or guardian name"
+                        className="border-white/10 bg-black/20"
+                      />
+                    </FieldShell>
+                    <FieldShell
+                      label="Family contact phone"
+                      hint="Used for parent-guided introductions."
+                    >
+                      <Input
+                        value={draft.contact.familyContactPhone}
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            contact: { ...current.contact, familyContactPhone: event.target.value },
+                          }))
+                        }
+                        placeholder="+94 77 123 4567"
+                        className="border-white/10 bg-black/20"
+                      />
+                    </FieldShell>
+                  </div>
+
                     <div className="grid gap-5 lg:grid-cols-2">
                     <div className="rounded-[28px] border border-white/10 bg-black/20 p-5">
                       <p className="text-sm font-semibold text-foreground">NIC review</p>
@@ -1152,11 +1308,12 @@ export function BiodataBuilder() {
                         </div>
                       </div>
                       <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                        {!draft.media.nicDocumentUrl
-                          ? "Upload the NIC file first. That moves this step into submitted review state."
+                        {!hasUploadedAsset(draft.media.nicFrontPath, draft.media.nicFrontUrl) ||
+                        !hasUploadedAsset(draft.media.nicBackPath, draft.media.nicBackUrl)
+                          ? "Upload both NIC sides first. That moves this step into submitted review state."
                           : nicStatus === "verified"
-                            ? "Identity document has cleared review and can support trust badges."
-                            : "File uploaded. This stays in submitted until your team review marks it verified."}
+                            ? "Identity review has cleared both sides and can support trust badges."
+                            : "Both NIC sides are uploaded. This stays in submitted until your team review marks it verified."}
                       </p>
                     </div>
 
@@ -1169,7 +1326,7 @@ export function BiodataBuilder() {
                         </div>
                       </div>
                       <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                        {!draft.media.selfieUrl
+                        {!hasUploadedAsset(draft.media.selfiePath, draft.media.selfieUrl)
                           ? "Upload a verification selfie so the identity check can be matched to the NIC."
                           : selfieStatus === "verified"
                             ? "Selfie check has cleared review and supports the trust layer."
@@ -1184,10 +1341,10 @@ export function BiodataBuilder() {
                         <p className="text-sm font-semibold text-foreground">Verification workflow</p>
                         <p className="mt-2 text-sm leading-6 text-foreground/85">
                           {!verificationPackReady
-                            ? "Upload both the NIC document and the selfie to move this profile into the review queue."
+                            ? "Upload NIC front, NIC back, and selfie to move this profile into the review queue."
                             : verificationReady
                               ? "Both checks are verified. This profile can show full trust badges across the product."
-                              : "Both files are uploaded. The profile is now in the review queue and waiting for a verified decision."}
+                              : "All required images are uploaded. The profile is now in the review queue and waiting for a verified decision."}
                         </p>
                       </div>
                       <Badge
@@ -1208,17 +1365,21 @@ export function BiodataBuilder() {
                             : "Uploads missing"}
                       </Badge>
                     </div>
-                    <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                       <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
                         <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Step 1</p>
-                        <p className="mt-2 text-sm font-medium text-foreground">Upload NIC</p>
+                        <p className="mt-2 text-sm font-medium text-foreground">Upload NIC front</p>
                       </div>
                       <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
                         <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Step 2</p>
-                        <p className="mt-2 text-sm font-medium text-foreground">Upload selfie</p>
+                        <p className="mt-2 text-sm font-medium text-foreground">Upload NIC back</p>
                       </div>
                       <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
                         <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Step 3</p>
+                        <p className="mt-2 text-sm font-medium text-foreground">Upload selfie</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Step 4</p>
                         <p className="mt-2 text-sm font-medium text-foreground">Team review unlocks verified</p>
                       </div>
                     </div>
@@ -1226,12 +1387,11 @@ export function BiodataBuilder() {
 
                   <FieldShell
                     label="Verification assets"
-                    hint="Uploads are attached to your signed-in account and saved back into the profile document."
+                    hint={`One image per slot. Allowed types: ${allowedProfileAssetTypesLabel()}.`}
                   >
-                    <div className="grid gap-4 xl:grid-cols-3">
+                    <div className="grid gap-4 md:grid-cols-2">
                       {assetCards.map((asset) => {
                         const meta = assetMeta(asset.kind)
-                        const isUploading = uploadingAsset === asset.kind
 
                         return (
                           <div
@@ -1249,7 +1409,7 @@ export function BiodataBuilder() {
                             </div>
 
                             <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
-                              <div className="flex items-center justify-between gap-3">
+                              <div className="flex flex-wrap items-center justify-between gap-3">
                                 <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Status</span>
                                 <Badge
                                   variant="outline"
@@ -1263,48 +1423,131 @@ export function BiodataBuilder() {
                                   {meta.url ? meta.status : "Not uploaded"}
                                 </Badge>
                               </div>
-                              <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                                {meta.path ? meta.path : "No file attached yet."}
-                              </p>
-                              {meta.url ? (
-                                <a
-                                  href={meta.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="mt-3 inline-flex text-xs font-medium text-primary transition hover:text-primary/85"
-                                >
-                                  Open uploaded file
-                                </a>
+                              {meta.path || meta.url ? (
+                                <MediaPreviewDialog
+                                  title={asset.title}
+                                  path={meta.path}
+                                  fallbackUrl={meta.url}
+                                  kind={assetPreviewKind(asset.kind)}
+                                />
                               ) : null}
                             </div>
 
-                            <div className="mt-4 space-y-3">
-                              <Input
-                                type="file"
-                                accept={asset.accept}
-                                disabled={!user || !backendAvailable || isUploading}
-                                onChange={(event) => {
-                                  const file = event.target.files?.[0]
-
-                                  if (file) {
-                                    void handleAssetUpload(asset.kind, file)
-                                  }
-
-                                  event.target.value = ""
-                                }}
-                                className="border-white/10 bg-black/20 file:mr-4 file:rounded-full file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground"
-                              />
-                              <p className="text-xs leading-5 text-muted-foreground">
-                                {isUploading
-                                  ? "Upload in progress. The profile will sync automatically when it finishes."
-                                  : user
-                                    ? "Signed in and ready for upload."
-                                    : "Sign in first so the files stay attached to your account."}
-                              </p>
+                            <div className="mt-4">
+                              {renderUploadControl({
+                                kind: asset.kind,
+                                accept: asset.accept,
+                                label: "Upload image",
+                                helper: "One image only",
+                              })}
                             </div>
                           </div>
                         )
                       })}
+
+                      <div className="rounded-[28px] border border-primary/20 bg-[linear-gradient(180deg,rgba(212,175,55,0.08),rgba(255,255,255,0.03))] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.2)] md:col-span-2">
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10">
+                              <CreditCard className="h-5 w-5 text-primary" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-foreground">NIC images</p>
+                              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                                Upload both NIC sides together. Verification only moves forward after both are present.
+                              </p>
+                            </div>
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "inline-flex w-fit rounded-full px-3 py-1",
+                              hasUploadedAsset(draft.media.nicFrontPath, draft.media.nicFrontUrl) &&
+                                hasUploadedAsset(draft.media.nicBackPath, draft.media.nicBackUrl)
+                                ? "border-emerald-400/25 bg-emerald-500/12 text-emerald-100"
+                                : "border-amber-400/25 bg-amber-500/12 text-amber-100",
+                            )}
+                          >
+                            {hasUploadedAsset(draft.media.nicFrontPath, draft.media.nicFrontUrl) &&
+                            hasUploadedAsset(draft.media.nicBackPath, draft.media.nicBackUrl)
+                              ? "Both sides ready"
+                              : "Both sides required"}
+                          </Badge>
+                        </div>
+
+                        <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">NIC completeness</p>
+                            <p className="text-sm font-medium text-foreground">
+                              {Number(hasUploadedAsset(draft.media.nicFrontPath, draft.media.nicFrontUrl)) +
+                                Number(hasUploadedAsset(draft.media.nicBackPath, draft.media.nicBackUrl))}
+                              /2 uploaded
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                          {([
+                            {
+                              title: "NIC front",
+                              kind: "nic-front",
+                              accept: "image/jpeg,image/png,image/webp,image/heic,image/heif",
+                            },
+                            {
+                              title: "NIC back",
+                              kind: "nic-back",
+                              accept: "image/jpeg,image/png,image/webp,image/heic,image/heif",
+                            },
+                          ] as const).map((asset, index) => {
+                            const meta = assetMeta(asset.kind)
+
+                            return (
+                              <div
+                                key={asset.kind}
+                                className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-4"
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                  <div>
+                                    <p className="text-sm font-medium text-foreground">{asset.title}</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                      {index === 0
+                                        ? "Make sure the NIC number and face area are clear."
+                                        : "Make sure the address and issue details are readable."}
+                                    </p>
+                                  </div>
+                                  <Badge
+                                    variant="outline"
+                                    className={cn(
+                                      "rounded-full px-3 py-1",
+                                      meta.url
+                                        ? "border-emerald-400/25 bg-emerald-500/12 text-emerald-100"
+                                        : "border-white/10 bg-white/[0.04] text-muted-foreground",
+                                    )}
+                                  >
+                                    {meta.url ? meta.status : "Not uploaded"}
+                                  </Badge>
+                                </div>
+                                {meta.path || meta.url ? (
+                                  <MediaPreviewDialog
+                                    title={asset.title}
+                                    path={meta.path}
+                                    fallbackUrl={meta.url}
+                                    kind="image"
+                                  />
+                                ) : null}
+                                <div className="mt-4">
+                                  {renderUploadControl({
+                                    kind: asset.kind,
+                                    accept: asset.accept,
+                                    label: `Upload ${asset.title.toLowerCase()}`,
+                                    helper: "One image only",
+                                  })}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
                       <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Upload status</p>
@@ -1390,7 +1633,8 @@ export function BiodataBuilder() {
                 <CardContent className="space-y-5">
                   <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-4">
                     <ProfilePhotoCard
-                      photoUrl={previewDraft.media.profilePhotoUrl}
+                      photoUrl={resolvedPreviewPhotoUrl}
+                      photoPath={previewDraft.media.profilePhotoPath}
                       displayName={`${previewDraft.basics.firstName} ${previewDraft.basics.lastName}`.trim()}
                       visibility={previewDraft.privacy.photoVisibility}
                     />
@@ -1477,19 +1721,26 @@ export function BiodataBuilder() {
                     <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
                       <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Photo</p>
                       <p className="mt-2 text-sm font-medium text-foreground">
-                        {previewDraft.media.profilePhotoUrl ? "Uploaded" : "Pending"}
+                        {hasUploadedAsset(previewDraft.media.profilePhotoPath, previewDraft.media.profilePhotoUrl)
+                          ? "Uploaded"
+                          : "Pending"}
                       </p>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
-                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">NIC file</p>
+                      <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">NIC sides</p>
                       <p className="mt-2 text-sm font-medium text-foreground">
-                        {previewDraft.media.nicDocumentUrl ? "Uploaded" : "Pending"}
+                        {hasUploadedAsset(previewDraft.media.nicFrontPath, previewDraft.media.nicFrontUrl) &&
+                        hasUploadedAsset(previewDraft.media.nicBackPath, previewDraft.media.nicBackUrl)
+                          ? "Uploaded"
+                          : "Pending"}
                       </p>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
                       <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Selfie</p>
                       <p className="mt-2 text-sm font-medium text-foreground">
-                        {previewDraft.media.selfieUrl ? "Uploaded" : "Pending"}
+                        {hasUploadedAsset(previewDraft.media.selfiePath, previewDraft.media.selfieUrl)
+                          ? "Uploaded"
+                          : "Pending"}
                       </p>
                     </div>
                   </div>
@@ -1525,7 +1776,7 @@ export function BiodataBuilder() {
                     </p>
                   </div>
 
-                  <div className="flex flex-col gap-3 sm:flex-row">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button asChild className="h-11 rounded-full bg-primary px-5 font-semibold text-primary-foreground hover:bg-primary/90">
                       <Link href={documentHref}>
                         View biodata layout
@@ -1535,7 +1786,7 @@ export function BiodataBuilder() {
                     <Button
                       variant="outline"
                       asChild
-                      className="h-11 rounded-full border-white/15 bg-white/[0.04] text-foreground hover:bg-white/[0.08]"
+                      className="h-11 rounded-full border-white/15 bg-white/[0.04] px-5 text-foreground hover:bg-white/[0.08]"
                     >
                       <Link href={documentHref}>Print / export PDF</Link>
                     </Button>
@@ -1573,6 +1824,22 @@ export function BiodataBuilder() {
           </div>
         </div>
       </section>
+
+      <ImageEditDialog
+        open={Boolean(pendingEditorUpload)}
+        file={pendingEditorUpload?.file ?? null}
+        kind={pendingEditorUpload?.kind ?? null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingEditorUpload(null)
+          }
+        }}
+        onConfirm={async (croppedFile) => {
+          if (!pendingEditorUpload) return
+          await handleAssetUpload(pendingEditorUpload.kind, croppedFile)
+          setPendingEditorUpload(null)
+        }}
+      />
     </main>
   )
 }

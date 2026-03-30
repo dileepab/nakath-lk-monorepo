@@ -11,7 +11,6 @@ import {
   LoaderCircle,
   LockKeyhole,
   Search,
-  Sparkles,
   Users,
 } from "lucide-react"
 
@@ -32,8 +31,9 @@ import {
   type ProfileDraft,
 } from "@acme/core"
 import { calculatePorondamPreview } from "@acme/core"
-import { isFirebaseConfigured, loadProfileDraftFromBackend } from "@/lib/profile-store"
-import { sendMatchRequest } from "@/lib/match-api"
+import { getFirebaseAuth } from "@/lib/firebase-client"
+import { isFirebaseConfigured, loadOwnProfileDraftFromBackend } from "@/lib/profile-store"
+import { getReceivedMatches, getSentMatches, sendMatchRequest } from "@/lib/match-api"
 import { cn } from "@/lib/utils"
 
 type BrowseFilter = "all" | "verified" | "blurred" | "family"
@@ -87,22 +87,36 @@ function cardAge(draft: ProfileDraft) {
   return ageFromBirthDate(draft.horoscope.birthDate) ?? draft.basics.age
 }
 
+type RelationshipState = {
+  status: "pending" | "approved" | "rejected" | "withdrawn"
+  direction: "incoming" | "outgoing"
+  matchId: string
+}
+
 function ProfileBrowseCard({
   profile,
   referenceDraft,
   currentUserUid,
+  relationship,
 }: {
   profile: BrowseProfileFixture
   referenceDraft: ProfileDraft
   currentUserUid: string | null
+  relationship?: RelationshipState
 }) {
   const [requestState, setRequestState] = useState<"idle" | "loading" | "sent">("idle")
+  const isUnlocked = relationship?.status === "approved"
+  const hasPendingIncoming = relationship?.status === "pending" && relationship.direction === "incoming"
+  const hasPendingOutgoing = relationship?.status === "pending" && relationship.direction === "outgoing"
+  const chatHref = relationship?.matchId ? `/messages?matchId=${relationship.matchId}` : "/messages"
 
   const handleRequest = async () => {
-    if (!currentUserUid || profile.source === "current-user") return
+    if (!currentUserUid || profile.source === "current-user" || relationship) return
     setRequestState("loading")
     try {
-      await sendMatchRequest(currentUserUid, profile.id)
+      const token = await getFirebaseAuth().currentUser?.getIdToken()
+      if (!token) throw new Error("Missing auth token.")
+      await sendMatchRequest(token, profile.id)
       setRequestState("sent")
     } catch {
       setRequestState("idle")
@@ -123,8 +137,10 @@ function ProfileBrowseCard({
           <div className="border-b border-white/10 p-5 xl:border-b-0 xl:border-r">
             <ProfilePhotoCard
               photoUrl={draft.media.profilePhotoUrl}
+              photoPath={draft.media.profilePhotoPath}
               displayName={displayName}
               visibility={draft.privacy.photoVisibility}
+              unlocked={isUnlocked}
             />
           </div>
 
@@ -160,7 +176,7 @@ function ProfileBrowseCard({
                 {verificationLabel(draft)}
               </Badge>
               <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1 text-foreground">
-                {visibilityLabel(draft.privacy.photoVisibility)}
+                {isUnlocked ? "Photo unlocked" : visibilityLabel(draft.privacy.photoVisibility)}
               </Badge>
               <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1 text-foreground">
                 {draft.verification.familyContactAllowed ? "Family intro ready" : "Direct intro"}
@@ -183,7 +199,9 @@ function ProfileBrowseCard({
               <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
                 <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Photo rule</p>
                 <p className="mt-2 text-sm font-medium text-foreground">
-                  {draft.privacy.photoVisibility === "family"
+                  {isUnlocked
+                    ? "This approved match can now see the full profile photo."
+                    : draft.privacy.photoVisibility === "family"
                     ? "No photo is shown before family review."
                     : draft.privacy.photoVisibility === "mutual"
                       ? "A lighter preview appears before mutual interest."
@@ -225,14 +243,38 @@ function ProfileBrowseCard({
                       <ArrowUpRight className="h-4 w-4" />
                     </Link>
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handleRequest}
-                    disabled={!currentUserUid || requestState !== "idle"}
-                    className="h-11 rounded-full border-white/15 bg-white/[0.04] text-foreground hover:bg-white/[0.08]"
-                  >
-                    {requestState === "loading" ? "Sending..." : requestState === "sent" ? "Request Sent" : draft.privacy.contactVisibility === "family-request" ? "Send family request" : "Request contact"}
-                  </Button>
+                  {isUnlocked ? (
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="h-11 rounded-full border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
+                    >
+                      <Link href={chatHref}>Open chat</Link>
+                    </Button>
+                  ) : hasPendingIncoming ? (
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="h-11 rounded-full border-white/15 bg-white/[0.04] text-foreground hover:bg-white/[0.08]"
+                    >
+                      <Link href="/dashboard">Respond in dashboard</Link>
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      onClick={handleRequest}
+                      disabled={!currentUserUid || requestState !== "idle" || hasPendingOutgoing}
+                      className="h-11 rounded-full border-white/15 bg-white/[0.04] text-foreground hover:bg-white/[0.08]"
+                    >
+                      {requestState === "loading"
+                        ? "Sending..."
+                        : hasPendingOutgoing || requestState === "sent"
+                          ? "Request Sent"
+                          : draft.privacy.contactVisibility === "family-request"
+                            ? "Send family request"
+                            : "Request contact"}
+                    </Button>
+                  )}
                 </>
               )}
             </div>
@@ -249,6 +291,7 @@ export function ProfileBrowser() {
   const [activeFilter, setActiveFilter] = useState<BrowseFilter>("all")
   const [query, setQuery] = useState("")
   const [loadingProfile, setLoadingProfile] = useState(false)
+  const [relationships, setRelationships] = useState<Record<string, RelationshipState>>({})
 
   useEffect(() => {
     if (authLoading || !user || !isFirebaseConfigured()) {
@@ -259,21 +302,40 @@ export function ProfileBrowser() {
     let cancelled = false
     setLoadingProfile(true)
 
-    void loadProfileDraftFromBackend(user.uid)
-      .then((draft) => {
+    void Promise.all([loadOwnProfileDraftFromBackend(user.uid), getReceivedMatches(user.uid), getSentMatches(user.uid)])
+      .then(([draft, received, sent]) => {
         if (cancelled) return
 
         if (!draft) {
           setCurrentUserProfile(null)
-          return
+        } else {
+          setCurrentUserProfile({
+            id: `current-${user.uid}`,
+            source: "current-user",
+            matchScore: 19,
+            draft,
+          })
         }
 
-        setCurrentUserProfile({
-          id: `current-${user.uid}`,
-          source: "current-user",
-          matchScore: 19,
-          draft,
-        })
+        const nextRelationships: Record<string, RelationshipState> = {}
+
+        for (const match of received) {
+          nextRelationships[match.senderId] = {
+            status: match.status,
+            direction: "incoming",
+            matchId: match.id,
+          }
+        }
+
+        for (const match of sent) {
+          nextRelationships[match.receiverId] = {
+            status: match.status,
+            direction: "outgoing",
+            matchId: match.id,
+          }
+        }
+
+        setRelationships(nextRelationships)
       })
       .finally(() => {
         if (!cancelled) {
@@ -330,17 +392,10 @@ export function ProfileBrowser() {
             </Button>
 
             <div className="flex flex-wrap items-center gap-2">
-              <Badge className="rounded-full bg-primary/90 px-3 py-1 text-primary-foreground">Browse preview</Badge>
+              <Badge className="rounded-full bg-primary/90 px-3 py-1 text-primary-foreground">Browse</Badge>
               <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1">
                 Profile list
               </Badge>
-              <Button
-                variant="outline"
-                asChild
-                className="h-9 rounded-full border-white/10 bg-white/[0.04] text-foreground hover:bg-white/[0.08]"
-              >
-                <Link href="/review">Reviewer workspace</Link>
-              </Button>
             </div>
           </div>
 
@@ -348,11 +403,10 @@ export function ProfileBrowser() {
             <div>
               <p className="text-sm font-medium uppercase tracking-[0.3em] text-primary">Real product surface</p>
               <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight text-foreground md:text-5xl">
-                Browse profiles in a way that actually reflects privacy, verification, and family-safe introductions.
+                Browse profiles with privacy and trust built in.
               </h1>
               <p className="mt-5 max-w-3xl text-lg leading-8 text-muted-foreground">
-                This is the first proper list view for the app. It uses the same biodata model, the same photo privacy
-                rules, and the same verification state we already wired into the builder.
+                Find profiles, review the basics, and send an introduction request.
               </p>
             </div>
 
@@ -388,7 +442,7 @@ export function ProfileBrowser() {
               <CardHeader className="space-y-3">
                 <CardTitle className="text-xl text-foreground">Browse controls</CardTitle>
                 <CardDescription className="leading-6 text-muted-foreground">
-                  Filter by trust level or privacy mode, then test how the cards read before we build matching logic.
+                  Filter by trust level or privacy mode.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
@@ -421,23 +475,12 @@ export function ProfileBrowser() {
                   ))}
                 </div>
 
-                <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    <p className="text-sm font-semibold text-foreground">What this proves</p>
-                  </div>
-                  <p className="mt-3 text-sm leading-7 text-muted-foreground">
-                    The same profile data can now drive builder, biodata PDF, browse cards, and a launch-stage
-                    Porondam preview without rewriting the logic in each place.
-                  </p>
-                </div>
-
                 <div className="rounded-3xl border border-primary/20 bg-primary/10 p-5">
                   <p className="text-xs uppercase tracking-[0.24em] text-primary">Scoring basis</p>
                   <p className="mt-3 text-sm leading-7 text-foreground/90">
                     {currentUserProfile
-                      ? "Scores are compared against your saved biodata, so the browse list reflects your own age, district, religion, and trust preferences."
-                      : "Scores are currently compared against the launch demo biodata until a signed-in user profile is available."}
+                      ? "Scores are based on your saved profile."
+                      : "Scores are based on the default profile for now."}
                   </p>
                 </div>
               </CardContent>
@@ -448,14 +491,20 @@ export function ProfileBrowser() {
                 <Card className="border-white/10 bg-white/[0.035] backdrop-blur-xl">
                   <CardContent className="flex items-center gap-3 px-6 py-6 text-muted-foreground">
                     <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
-                    Loading your saved profile into the browse view...
+                    Loading your profile...
                   </CardContent>
                 </Card>
               ) : null}
 
               {profiles.length ? (
                 profiles.map((profile) => (
-                  <ProfileBrowseCard key={profile.id} profile={profile} referenceDraft={referenceDraft} currentUserUid={user?.uid ?? null} />
+                  <ProfileBrowseCard
+                    key={profile.id}
+                    profile={profile}
+                    referenceDraft={referenceDraft}
+                    currentUserUid={user?.uid ?? null}
+                    relationship={relationships[profile.id]}
+                  />
                 ))
               ) : (
                 <Card className="border-white/10 bg-white/[0.035] backdrop-blur-xl">

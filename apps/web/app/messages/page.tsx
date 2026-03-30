@@ -1,34 +1,43 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useEffect, useState, useRef } from "react"
-import { ArrowLeft, LoaderCircle, Send } from "lucide-react"
-import { motion, AnimatePresence } from "framer-motion"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useMemo, useState } from "react"
+import { ArrowLeft, LoaderCircle, MessageCircle } from "lucide-react"
 
 import { useAuth } from "@/components/auth-provider"
 import { AstrologyBackground } from "@/components/astrology-background"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-
+import { ChatWindow } from "@/components/chat-window"
+import { getProfileDisplayName, getProfileSummaryLine } from "@/lib/profile-presenter"
 import { getReceivedMatches, getSentMatches } from "@/lib/match-api"
-import { subscribeToMessages, sendMessage } from "@/lib/chat-api"
-import { type MatchRequest, type ChatMessage } from "@acme/core"
+import { loadPublicProfileDraftFromBackend } from "@/lib/profile-store"
+import { type MatchRequest, type ProfileDraft } from "@acme/core"
+
+type MatchListItem = {
+  match: MatchRequest
+  otherUserId: string
+  otherProfile: ProfileDraft | null
+}
+
+function displayNameFromDraft(draft: ProfileDraft | null, fallbackUserId: string) {
+  return getProfileDisplayName(draft, "Your match")
+}
+
+function profileMetaFromDraft(draft: ProfileDraft | null) {
+  return getProfileSummaryLine(draft, "Approved introduction")
+}
 
 export default function MessagesPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, loading: authLoading } = useAuth()
-  
-  const [matches, setMatches] = useState<MatchRequest[]>([])
+
+  const [matches, setMatches] = useState<MatchListItem[]>([])
   const [loadingMatches, setLoadingMatches] = useState(true)
-  
-  const [activeMatch, setActiveMatch] = useState<MatchRequest | null>(null)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [inputText, setInputText] = useState("")
-  
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
 
   useEffect(() => {
     if (authLoading) return
@@ -37,46 +46,64 @@ export default function MessagesPage() {
       return
     }
 
+    const currentUser = user
+
     let cancelled = false
-    Promise.all([
-      getReceivedMatches(user.uid),
-      getSentMatches(user.uid)
-    ]).then(([received, sent]) => {
-      if (cancelled) return
-      const allApproved = [...received, ...sent].filter(m => m.status === "approved")
-      setMatches(allApproved)
-      setLoadingMatches(false)
-    })
 
-    return () => { cancelled = true }
-  }, [authLoading, user, router])
+    async function loadMatches() {
+      try {
+        const [received, sent] = await Promise.all([getReceivedMatches(currentUser.uid), getSentMatches(currentUser.uid)])
+        const approvedMatches = [...received, ...sent].filter((match) => match.status === "approved")
+        const otherUserIds = Array.from(
+          new Set(
+            approvedMatches.map((match) => (match.senderId === currentUser.uid ? match.receiverId : match.senderId)),
+          ),
+        )
+        const profilePairs = await Promise.all(
+          otherUserIds.map(
+            async (otherUserId) => [otherUserId, await loadPublicProfileDraftFromBackend(otherUserId)] as const,
+          ),
+        )
 
-  // Subscribe to active match messages
-  useEffect(() => {
-    if (!activeMatch) {
-      setMessages([])
-      return
+        if (cancelled) return
+
+        const profileMap = new Map(profilePairs)
+        const nextMatches = approvedMatches.map((match) => {
+          const otherUserId = match.senderId === currentUser.uid ? match.receiverId : match.senderId
+          return {
+            match,
+            otherUserId,
+            otherProfile: profileMap.get(otherUserId) ?? null,
+          }
+        })
+
+        setMatches(nextMatches)
+
+        const requestedMatchId = searchParams.get("matchId")
+        const initialMatch = nextMatches.find((item) => item.match.id === requestedMatchId) ?? nextMatches[0] ?? null
+        setActiveMatchId(initialMatch?.match.id ?? null)
+      } finally {
+        if (!cancelled) {
+          setLoadingMatches(false)
+        }
+      }
     }
-    const unsubscribe = subscribeToMessages(activeMatch.id, (msgs) => {
-      setMessages(msgs)
-    })
-    return () => unsubscribe()
-  }, [activeMatch])
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+    void loadMatches()
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!inputText.trim() || !user || !activeMatch) return
-    
-    // Store locally to clear input instantly
-    const textToSend = inputText
-    setInputText("")
-    
-    await sendMessage(activeMatch.id, user.uid, textToSend)
-  }
+    return () => {
+      cancelled = true
+    }
+  }, [authLoading, router, searchParams, user])
+
+  const activeMatch = useMemo(
+    () => matches.find((item) => item.match.id === activeMatchId)?.match ?? null,
+    [activeMatchId, matches],
+  )
+  const activeMatchItem = useMemo(
+    () => matches.find((item) => item.match.id === activeMatchId) ?? null,
+    [activeMatchId, matches],
+  )
 
   if (authLoading || loadingMatches) {
     return (
@@ -98,42 +125,43 @@ export default function MessagesPage() {
     <main className="relative min-h-screen overflow-hidden bg-[#0B0B0C] text-[#F9F9F7]">
       <AstrologyBackground />
 
-      <section className="relative z-10 px-6 pb-16 pt-10 md:px-12 lg:px-20 h-screen flex flex-col">
-        <div className="mx-auto w-full max-w-7xl flex flex-col h-full">
-          <div className="flex flex-wrap items-center justify-between gap-4 shrink-0">
+      <section className="relative z-10 flex h-screen flex-col px-6 pb-16 pt-10 md:px-12 lg:px-20">
+        <div className="mx-auto flex h-full w-full max-w-7xl flex-col">
+          <div className="shrink-0 flex flex-wrap items-center justify-between gap-4">
             <Button variant="ghost" asChild className="w-fit rounded-full border border-white/10 bg-white/[0.04]">
               <Link href="/dashboard">
                 <ArrowLeft className="h-4 w-4" />
                 Back to dashboard
               </Link>
             </Button>
-            <Badge className="rounded-full bg-primary/90 px-3 py-1 text-primary-foreground">Private Messages</Badge>
+            <Badge className="rounded-full bg-primary/90 px-3 py-1 text-primary-foreground">Private messages</Badge>
           </div>
 
-          <div className="mt-8 flex flex-col lg:flex-row gap-6 flex-1 min-h-0 pb-8">
-            {/* Conversations List */}
-            <Card className="flex flex-col border-white/10 bg-[#121214]/90 shadow-[0_28px_90px_rgba(0,0,0,0.28)] backdrop-blur-xl lg:w-1/3 shrink-0 h-[300px] lg:h-full overflow-hidden">
-              <div className="p-5 border-b border-white/10">
-                <h3 className="font-semibold text-lg text-foreground">Approved Matches</h3>
+          <div className="mt-8 flex min-h-0 flex-1 flex-col gap-6 pb-8 lg:flex-row">
+            <Card className="flex h-[320px] shrink-0 flex-col overflow-hidden border-white/10 bg-[#121214]/90 shadow-[0_28px_90px_rgba(0,0,0,0.28)] backdrop-blur-xl lg:h-full lg:w-1/3">
+              <div className="border-b border-white/10 p-5">
+                <h3 className="text-lg font-semibold text-foreground">Approved matches</h3>
               </div>
-              <div className="p-3 overflow-y-auto flex-1 space-y-2">
+              <div className="flex-1 space-y-2 overflow-y-auto p-3">
                 {matches.length === 0 ? (
-                  <p className="text-muted-foreground text-sm p-3 text-center">No approved matches yet.</p>
+                  <p className="p-3 text-center text-sm text-muted-foreground">No approved matches yet.</p>
                 ) : (
-                  matches.map(m => {
-                    const isOtherUser = user?.uid === m.senderId ? m.receiverId : m.senderId
+                  matches.map((item) => {
+                    const selected = activeMatchId === item.match.id
                     return (
-                      <button 
-                        key={m.id}
-                        onClick={() => setActiveMatch(m)}
-                        className={`w-full text-left p-4 rounded-2xl transition-all ${
-                          activeMatch?.id === m.id 
-                          ? "bg-primary/20 border-primary/30" 
-                          : "bg-white/[0.04] border-white/10 hover:bg-white/[0.08]"
-                        } border`}
+                      <button
+                        key={item.match.id}
+                        onClick={() => setActiveMatchId(item.match.id)}
+                        className={`w-full rounded-2xl border p-4 text-left transition-all ${
+                          selected
+                            ? "border-primary/30 bg-primary/20"
+                            : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]"
+                        }`}
                       >
-                        <p className="font-semibold text-sm">User ({isOtherUser.slice(-4)})</p>
-                        <p className="text-xs text-muted-foreground mt-1">Matched</p>
+                        <p className="font-semibold text-sm text-foreground">
+                          {displayNameFromDraft(item.otherProfile, item.otherUserId)}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">{profileMetaFromDraft(item.otherProfile)}</p>
                       </button>
                     )
                   })
@@ -141,77 +169,23 @@ export default function MessagesPage() {
               </div>
             </Card>
 
-            {/* Chat Interface */}
-            {activeMatch ? (
-              <motion.div 
-                key="chat-window"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="flex-1 min-h-0 flex flex-col"
-              >
-                <Card className="flex-1 flex flex-col border-white/10 bg-[#121214]/90 shadow-[0_28px_90px_rgba(0,0,0,0.28)] backdrop-blur-xl overflow-hidden">
-                  <div className="p-5 border-b border-white/10 flex items-center justify-between shrink-0 bg-black/40">
-                    <div>
-                      <h3 className="font-semibold text-foreground">
-                        Chatting with User ({(user?.uid === activeMatch.senderId ? activeMatch.receiverId : activeMatch.senderId).slice(-4)})
-                      </h3>
-                      <p className="text-xs text-primary mt-1 flex items-center gap-1">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                        </span>
-                        Encrypted Connection
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {/* Message Stream */}
-                  <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                    <AnimatePresence>
-                      {messages.map(msg => {
-                        const isMe = msg.senderId === user?.uid
-                        return (
-                          <motion.div 
-                            key={msg.id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className={`flex ${isMe ? "justify-end" : "justify-start"}`}
-                          >
-                            <div className={`max-w-[75%] px-4 py-3 rounded-2xl ${
-                              isMe ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-white/[0.08] text-foreground rounded-tl-sm border border-white/10"
-                            }`}>
-                              <p className="text-sm leading-relaxed">{msg.text}</p>
-                            </div>
-                          </motion.div>
-                        )
-                      })}
-                    </AnimatePresence>
-                    <div ref={messagesEndRef} />
-                  </div>
-                  
-                  {/* Input Box */}
-                  <div className="p-4 bg-black/40 border-t border-white/10 shrink-0">
-                    <form onSubmit={handleSend} className="flex items-center gap-3">
-                      <Input 
-                        value={inputText}
-                        onChange={e => setInputText(e.target.value)}
-                        placeholder="Type a message..."
-                        className="bg-white/[0.05] border-white/10 h-12 rounded-full px-5"
-                      />
-                      <Button type="submit" disabled={!inputText.trim()} className="h-12 w-12 rounded-full p-0 shrink-0 shrink-0 bg-primary hover:bg-primary/90 text-primary-foreground">
-                        <Send className="h-5 w-5 ml-1" />
-                      </Button>
-                    </form>
-                  </div>
-                </Card>
-              </motion.div>
+            {activeMatch && user ? (
+              <ChatWindow
+                activeMatch={activeMatch}
+                currentUserId={user.uid}
+                otherDisplayName={
+                  activeMatchItem
+                    ? displayNameFromDraft(activeMatchItem.otherProfile, activeMatchItem.otherUserId)
+                    : undefined
+                }
+              />
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center border border-dashed border-white/10 rounded-3xl bg-white/[0.02]">
-                 <div className="h-16 w-16 rounded-full bg-white/[0.04] flex items-center justify-center mb-4">
-                   <Send className="h-6 w-6 text-muted-foreground" />
-                 </div>
-                 <p className="text-muted-foreground font-medium">Select a match to start messaging</p>
-                 <p className="text-xs text-muted-foreground/60 mt-2">Messages are secured and private</p>
+              <div className="flex flex-1 flex-col items-center justify-center rounded-3xl border border-dashed border-white/10 bg-white/[0.02]">
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/[0.04]">
+                  <MessageCircle className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <p className="font-medium text-muted-foreground">Select a match to start messaging</p>
+                <p className="mt-2 text-xs text-muted-foreground/60">Messages stay private between approved profiles</p>
               </div>
             )}
           </div>
