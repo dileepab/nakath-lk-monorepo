@@ -1,0 +1,220 @@
+[debug] [2026-03-30T11:43:53.204Z] ----------------------------------------------------------------------
+[debug] [2026-03-30T11:43:53.206Z] Command:       /Users/Dileepa/.nvm/versions/node/v22.13.1/bin/node /Users/Dileepa/.nvm/versions/node/v22.13.1/bin/firebase deploy --only hosting --project nakath-platform --non-interactive --debug
+[debug] [2026-03-30T11:43:53.206Z] CLI Version:   14.27.0
+[debug] [2026-03-30T11:43:53.206Z] Platform:      darwin
+[debug] [2026-03-30T11:43:53.206Z] Node Version:  v22.13.1
+[debug] [2026-03-30T11:43:53.206Z] Time:          Mon Mar 30 2026 17:13:53 GMT+0530 (India Standard Time)
+[debug] [2026-03-30T11:43:53.207Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-03-30T11:43:53.305Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-03-30T11:43:53.305Z] > authorizing via signed-in user (postmanme2b@gmail.com)
+[debug] [2026-03-30T11:43:53.305Z] [iam] checking project nakath-platform for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-03-30T11:43:53.306Z] Checked if tokens are valid: true, expires at: 1774872818315
+[debug] [2026-03-30T11:43:53.306Z] Checked if tokens are valid: true, expires at: 1774872818315
+[debug] [2026-03-30T11:43:53.306Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/nakath-platform:testIamPermissions [none]
+[debug] [2026-03-30T11:43:53.306Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/nakath-platform:testIamPermissions x-goog-quota-user=projects/nakath-platform
+[debug] [2026-03-30T11:43:53.307Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/nakath-platform:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-03-30T11:43:54.545Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/nakath-platform:testIamPermissions 200
+[debug] [2026-03-30T11:43:54.545Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/nakath-platform:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-03-30T11:43:54.546Z] Checked if tokens are valid: true, expires at: 1774872818315
+[debug] [2026-03-30T11:43:54.546Z] Checked if tokens are valid: true, expires at: 1774872818315
+[debug] [2026-03-30T11:43:54.547Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/nakath-platform [none]
+[debug] [2026-03-30T11:43:55.050Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/nakath-platform 200
+[debug] [2026-03-30T11:43:55.050Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/nakath-platform {"projectId":"nakath-platform","projectNumber":"108804059292","displayName":"Nakath Platform","name":"projects/nakath-platform","resources":{"hostingSite":"nakath-platform"},"state":"ACTIVE","etag":"1_01bcdeef-ab84-4750-beff-345ce6a5158d"}
+[debug] [2026-03-30T11:43:56.373Z] defaultcredentials: writing to file /Users/Dileepa/.config/firebase/postmanme2b_gmail_com_application_default_credentials.json
+[debug] [2026-03-30T11:43:56.374Z] Checked if tokens are valid: true, expires at: 1774872818315
+[debug] [2026-03-30T11:43:56.374Z] Checked if tokens are valid: true, expires at: 1774872818315
+[debug] [2026-03-30T11:43:56.375Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/nakath-platform/sites pageToken=&pageSize=10
+[debug] [2026-03-30T11:43:57.413Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/nakath-platform/sites 200
+[debug] [2026-03-30T11:43:57.414Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/nakath-platform/sites {"sites":[{"name":"projects/nakath-platform/sites/nakath-platform","defaultUrl":"https://nakath-platform.web.app","type":"DEFAULT_SITE"}]}
+[debug] [2026-03-30T11:43:57.415Z] Checked if tokens are valid: true, expires at: 1774872818315
+[debug] [2026-03-30T11:43:57.415Z] Checked if tokens are valid: true, expires at: 1774872818315
+[debug] [2026-03-30T11:43:57.416Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/nakath-platform/sites 
+[debug] [2026-03-30T11:43:58.086Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/nakath-platform/sites 200
+[debug] [2026-03-30T11:43:58.086Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/nakath-platform/sites {"sites":[{"name":"projects/nakath-platform/sites/nakath-platform","defaultUrl":"https://nakath-platform.web.app","type":"DEFAULT_SITE"}]}
+[debug] [2026-03-30T11:43:58.086Z] Checked if tokens are valid: true, expires at: 1774872818315
+[debug] [2026-03-30T11:43:58.087Z] Checked if tokens are valid: true, expires at: 1774872818315
+[debug] [2026-03-30T11:43:58.087Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/nakath-platform/webApps/-/config [none]
+[debug] [2026-03-30T11:43:58.790Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/nakath-platform/webApps/-/config 200
+[debug] [2026-03-30T11:43:58.790Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/nakath-platform/webApps/-/config {"projectId":"nakath-platform","appId":"1:108804059292:web:84c1fc1b40dbf5608c3d59","storageBucket":"nakath-platform.firebasestorage.app","apiKey":"AIzaSyD5r4_95Jgu7oRBWIZ7xpx8fMrww3HjxjA","authDomain":"nakath-platform.firebaseapp.com","messagingSenderId":"108804059292","measurementId":"G-E3XWHZ29ML","projectNumber":"108804059292","version":"2"}
+[info] 
+   Thank you for trying our early preview of Next.js support on Firebase Hosting.
+   During the preview, support is best-effort and breaking changes can be expected. Proceed with caution.
+   The integration is known to work with Next.js version 12 - 15.0. You may encounter errors.
+
+   Documentation: https://firebase.google.com/docs/hosting/frameworks/nextjs
+   File a bug: https://github.com/firebase/firebase-tools/issues/new?template=bug_report.md
+   Submit a feature request: https://github.com/firebase/firebase-tools/issues/new?template=feature_request.md
+
+   We'd love to learn from you. Express your interest in helping us shape the future of Firebase Hosting: https://goo.gle/41enW5X
+
+[debug] [2026-03-30T11:44:01.941Z] Checked if tokens are valid: true, expires at: 1774872818315
+[debug] [2026-03-30T11:44:01.941Z] Checked if tokens are valid: true, expires at: 1774872818315
+[debug] [2026-03-30T11:44:01.941Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/nakath-platform/sites/nakath-platform [none]
+[debug] [2026-03-30T11:44:02.444Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/nakath-platform/sites/nakath-platform 200
+[debug] [2026-03-30T11:44:02.446Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/nakath-platform/sites/nakath-platform {"name":"projects/nakath-platform/sites/nakath-platform","defaultUrl":"https://nakath-platform.web.app","type":"DEFAULT_SITE"}
+[info] ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of /Users/Dileepa/Personal/Marriage Platform/b_sA1vTdFYTQP-1774524967030/package-lock.json as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles: 
+   * /Users/Dileepa/Personal/Marriage Platform/b_sA1vTdFYTQP-1774524967030/apps/web/pnpm-lock.yaml
+
+
+[info] ▲ Next.js 16.2.0 (Turbopack)
+
+[info] - Environments: .env.local
+- Experiments (use with caution):
+  ✓ externalDir
+
+
+[info]   Creating an optimized production build ...
+
+[info] 
+
+[info] [115.65ms] [@tailwindcss/postcss] app/globals.css
+[  0.04ms]   ↳ Quick bail check
+[ 28.95ms]   ↳ Setup compiler
+[  0.36ms]     ↳ PostCSS AST -> Tailwind CSS AST
+[ 28.58ms]     ↳ Create compiler
+[  0.10ms]   ↳ Register full rebuild paths
+[  0.85ms]   ↳ Setup scanner
+[ 10.51ms]   ↳ Scan for candidates
+[  2.17ms]   ↳ Register dependency messages
+[ 42.19ms]   ↳ Build utilities
+[ 26.87ms]   ↳ Optimization
+[  1.81ms]     ↳ AST -> CSS
+[ 12.29ms]     ↳ Lightning CSS
+
+[info] [ 12.73ms]     ↳ CSS -> PostCSS AST
+
+[info] [  3.71ms]   ↳ Update PostCSS AST
+
+[info] 
+
+[info] ✓ Compiled successfully in 3.3s
+
+[info]   Skipping validation of types
+
+[info]   Finished TypeScript config validation in 7ms ...
+
+[info]   Collecting page data using 9 workers ...
+
+[info] (node:45896) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:45892) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[info] (node:45891) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[info] (node:45894) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[info] (node:45897) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[info] (node:45895) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[info] (node:45893) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[info] (node:45899) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[info] (node:45898) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[info]   Generating static pages using 9 workers (0/18) ...
+
+[info]   Generating static pages using 9 workers (4/18) 
+
+[info] ⚠ Unsupported metadata themeColor is configured in metadata export in /_not-found. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+
+[info]   Generating static pages using 9 workers (8/18) 
+
+[info] ⚠ Unsupported metadata themeColor is configured in metadata export in /biodata/document. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+
+[info] ⚠ Unsupported metadata themeColor is configured in metadata export in /biodata. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+
+[info] ⚠ Unsupported metadata themeColor is configured in metadata export in /auth. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+
+[info] ⚠ Unsupported metadata themeColor is configured in metadata export in /messages. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+
+[info] ⚠ Unsupported metadata themeColor is configured in metadata export in /dashboard. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+
+[info] ⚠ Unsupported metadata themeColor is configured in metadata export in /. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+
+[info]   Generating static pages using 9 workers (13/18) 
+
+[info] ⚠ Unsupported metadata themeColor is configured in metadata export in /profiles. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+
+[info] ⚠ Unsupported metadata themeColor is configured in metadata export in /review. Please move it to viewport export instead.
+Read more: https://nextjs.org/docs/app/api-reference/functions/generate-viewport
+
+[info] ✓ Generating static pages using 9 workers (18/18) in 335ms
+
+[info]   Finalizing page optimization ...
+
+[info] 
+
+[info] Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api/chat/icebreakers
+├ ƒ /api/matches
+├ ƒ /api/matches/[matchId]/contact
+├ ƒ /api/matches/[matchId]/messages
+├ ƒ /api/matches/[matchId]/status
+├ ƒ /api/media/file
+├ ƒ /api/media/url
+├ ƒ /api/review/profiles
+├ ƒ /api/review/profiles/[userId]/verification
+├ ƒ /api/review/session
+├ ƒ /api/verify-identity
+├ ƒ /api/video/token
+├ ○ /auth
+├ ○ /biodata
+├ ○ /biodata/document
+├ ○ /dashboard
+├ ○ /messages
+├ ○ /profiles
+├ ƒ /profiles/[profileId]
+└ ○ /review
+
+
+[info] 
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+[info] Building a Cloud Function to run this application. This is needed due to:
+[info]  • non-static component /api/chat/icebreakers/route
+[info]  • non-static component /api/matches/[matchId]/contact/route
+[info]  • non-static component /api/matches/[matchId]/messages/route
+[info]  • non-static component /api/matches/[matchId]/status/route
+[info]  • non-static component /api/matches/route
+[debug] [2026-03-30T11:44:10.643Z]  • non-static component /api/media/file/route
+[debug] [2026-03-30T11:44:10.643Z]  • non-static component /api/media/url/route
+[debug] [2026-03-30T11:44:10.643Z]  • non-static component /api/review/profiles/[userId]/verification/route
+[debug] [2026-03-30T11:44:10.643Z]  • non-static component /api/review/profiles/route
+[debug] [2026-03-30T11:44:10.643Z]  • non-static component /api/review/session/route
+[debug] [2026-03-30T11:44:10.643Z]  • non-static component /api/verify-identity/route
+[debug] [2026-03-30T11:44:10.643Z]  • non-static component /api/video/token/route
+[debug] [2026-03-30T11:44:10.643Z]  • non-static component /profiles/[profileId]/page
+[info] 
+[debug] [2026-03-30T11:44:14.042Z] Checked if tokens are valid: true, expires at: 1774872818315
+[debug] [2026-03-30T11:44:14.043Z] Checked if tokens are valid: true, expires at: 1774872818315
+[debug] [2026-03-30T11:44:14.043Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/nakath-platform/sites/nakath-platform [none]
+[debug] [2026-03-30T11:44:14.840Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/nakath-platform/sites/nakath-platform 200
+[debug] [2026-03-30T11:44:14.840Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/nakath-platform/sites/nakath-platform {"name":"projects/nakath-platform/sites/nakath-platform","defaultUrl":"https://nakath-platform.web.app","type":"DEFAULT_SITE"}
+[debug] [2026-03-30T11:44:15.462Z] Error: ENOENT: no such file or directory, lstat '/Users/Dileepa/Personal/Marriage Platform/b_sA1vTdFYTQP-1774524967030/apps/web/.next/dev/cache/turbopack/0ca967b86/00001584.meta'
