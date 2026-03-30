@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, Suspense } from "react"
 import { ArrowLeft, LoaderCircle, MessageCircle } from "lucide-react"
 
 import { useAuth } from "@/components/auth-provider"
@@ -30,7 +30,7 @@ function profileMetaFromDraft(draft: ProfileDraft | null) {
   return getProfileSummaryLine(draft, "Approved introduction")
 }
 
-export default function MessagesPage() {
+function MessagesPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, loading: authLoading } = useAuth()
@@ -192,5 +192,25 @@ export default function MessagesPage() {
         </div>
       </section>
     </main>
+  )
+}
+
+export default function MessagesPage() {
+  return (
+    <Suspense fallback={
+      <main className="relative min-h-screen overflow-hidden bg-[#0B0B0C] text-[#F9F9F7]">
+        <AstrologyBackground />
+        <section className="relative z-10 flex min-h-screen items-center justify-center px-6">
+          <Card className="w-full max-w-xl border-white/10 bg-white/[0.04] backdrop-blur-xl">
+            <CardContent className="flex items-center gap-3 px-6 py-6 text-muted-foreground">
+              <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
+              Loading conversations...
+            </CardContent>
+          </Card>
+        </section>
+      </main>
+    }>
+      <MessagesPageContent />
+    </Suspense>
   )
 }
