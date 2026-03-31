@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import { useAuth } from "@/components/auth-provider"
 
 export function useResolvedMediaUrl(path?: string, fallbackUrl?: string) {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
   const [resolvedUrl, setResolvedUrl] = useState(fallbackUrl ?? "")
 
   useEffect(() => {
@@ -18,6 +18,10 @@ export function useResolvedMediaUrl(path?: string, fallbackUrl?: string) {
 
     if (!path.startsWith("profiles/")) {
       setResolvedUrl(fallbackUrl || path)
+      return
+    }
+
+    if (loading) {
       return
     }
 
@@ -38,6 +42,13 @@ export function useResolvedMediaUrl(path?: string, fallbackUrl?: string) {
 
       try {
         const idToken = await currentUser.getIdToken()
+        if (!idToken) {
+          if (!cancelled) {
+            setResolvedUrl(fallbackUrl ?? "")
+          }
+          return
+        }
+
         const response = await fetch(`/api/media/url?path=${encodeURIComponent(mediaPath)}`, {
           headers: {
             Authorization: `Bearer ${idToken}`,
@@ -67,7 +78,7 @@ export function useResolvedMediaUrl(path?: string, fallbackUrl?: string) {
     return () => {
       cancelled = true
     }
-  }, [fallbackUrl, path, user])
+  }, [fallbackUrl, loading, path, user])
 
   return resolvedUrl
 }

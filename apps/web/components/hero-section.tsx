@@ -1,3 +1,6 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
 import {
   ArrowRight,
   BadgeCheck,
@@ -8,7 +11,10 @@ import {
   Star,
 } from "lucide-react"
 
+import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
+import { loadOwnProfileDraftFromBackend } from "@/lib/profile-store"
+import type { ProfileDraft } from "@acme/core"
 
 const trustPoints = [
   {
@@ -28,16 +34,84 @@ const trustPoints = [
   },
 ]
 
-const biodataFields = [
-  ["Age", "29"],
-  ["Profession", "Architect"],
-  ["Location", "Colombo"],
-  ["Religion", "Buddhist"],
-  ["Nakath", "Rohini"],
-  ["Preferred age", "27-33"],
-]
-
 export function HeroSection() {
+  const { user, loading, configured } = useAuth()
+  const [draft, setDraft] = useState<ProfileDraft | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (!configured || loading) {
+      return
+    }
+
+    if (!user) {
+      setDraft(null)
+      return
+    }
+
+    const userId = user.uid
+
+    async function loadDraft() {
+      try {
+        const profile = await loadOwnProfileDraftFromBackend(userId)
+        if (!cancelled) {
+          setDraft(profile)
+        }
+      } catch {
+        if (!cancelled) {
+          setDraft(null)
+        }
+      }
+    }
+
+    void loadDraft()
+
+    return () => {
+      cancelled = true
+    }
+  }, [configured, loading, user])
+
+  const fullName = [draft?.basics.firstName, draft?.basics.lastName].filter(Boolean).join(" ").trim() || "Your name"
+  const heroLine = [
+    draft?.basics.age || "Add age",
+    draft?.basics.profession || "Add profession",
+    draft?.basics.district || "Add district",
+    draft ? "Family-intro ready" : "Complete biodata to personalize this card",
+  ].join(" • ")
+
+  const matchScore = useMemo(() => {
+    const checks = [
+      Boolean(draft?.basics.firstName || draft?.basics.lastName),
+      Boolean(draft?.basics.age),
+      Boolean(draft?.basics.profession),
+      Boolean(draft?.basics.district),
+      Boolean(draft?.horoscope.birthDate),
+      Boolean(draft?.horoscope.birthTime),
+      Boolean(draft?.horoscope.nakath),
+      Boolean(draft?.horoscope.lagna),
+      Boolean(draft?.media.profilePhotoPath || draft?.media.profilePhotoUrl),
+      Boolean(draft?.verification.nicStatus && draft?.verification.selfieStatus),
+    ]
+
+    const completed = checks.filter(Boolean).length
+    return `${Math.max(12, Math.min(20, 10 + completed))}/20`
+  }, [draft])
+
+  const biodataFields = [
+    ["Age", draft?.basics.age || "Add age"],
+    ["Profession", draft?.basics.profession || "Add profession"],
+    ["Location", draft?.basics.district || "Add district"],
+    ["Religion", draft?.basics.religion || "Add religion"],
+    ["Nakath", draft?.horoscope.nakath || "Add nakath"],
+    [
+      "Preferred age",
+      draft?.preferences.ageMin && draft?.preferences.ageMax
+        ? `${draft.preferences.ageMin}-${draft.preferences.ageMax}`
+        : "Set preference",
+    ],
+  ] as const
+
   return (
     <section id="start" className="relative overflow-hidden px-6 pb-20 pt-28 md:px-12 lg:px-20">
       <nav className="glass fixed left-0 right-0 top-0 z-50 border-b border-white/10 px-6 py-4 md:px-12 lg:px-20">
@@ -171,12 +245,12 @@ export function HeroSection() {
               <div className="mt-6 rounded-[24px] border border-white/10 bg-white/[0.035] p-5">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-lg font-semibold text-foreground">Nadeesha Fernando</p>
-                    <p className="mt-1 text-sm text-muted-foreground">29 • Architect • Colombo • Family-intro ready</p>
+                    <p className="text-lg font-semibold text-foreground">{fullName}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{heroLine}</p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-right">
                     <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Match score</p>
-                    <p className="text-2xl font-semibold text-primary">18/20</p>
+                    <p className="text-2xl font-semibold text-primary">{matchScore}</p>
                   </div>
                 </div>
 

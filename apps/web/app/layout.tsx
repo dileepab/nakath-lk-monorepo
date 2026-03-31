@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { Plus_Jakarta_Sans } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/components/auth-provider'
 import './globals.css'
 
@@ -43,7 +42,6 @@ export default function RootLayout({
     <html lang="en" className={`${plusJakarta.variable} dark`} data-scroll-behavior="smooth">
       <body className="bg-background font-sans antialiased text-foreground">
         <AuthProvider>{children}</AuthProvider>
-        <Analytics />
       </body>
     </html>
   )
