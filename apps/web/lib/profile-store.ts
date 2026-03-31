@@ -115,7 +115,7 @@ function fromFirestoreProfileRecord(record: FirestoreProfileRecord | undefined) 
       firstName: record.displayName?.split(" ")[0] ?? "",
       lastName: record.displayName?.split(" ").slice(1).join(" ") ?? "",
       gender:
-        record.gender === "male" ? "Male" : record.gender === "other" ? "Other" : "Female",
+        record.gender === "male" ? "Male" : record.gender === "female" ? "Female" : record.gender === "other" ? "Other" : "",
     },
     horoscope: {
       birthDate: record.dob?.slice(0, 10) ?? "",

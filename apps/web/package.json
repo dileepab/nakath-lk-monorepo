@@ -8,7 +8,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@acme/core": "file:../../packages/core",
     "@ai-sdk/openai": "^3.0.48",
     "@aws-sdk/client-rekognition": "^3.1019.0",
     "@ducanh2912/next-pwa": "^10.2.9",
@@ -72,6 +71,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.0",
+    "@acme/core": "file:../../packages/core",
     "@types/node": "^22",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",

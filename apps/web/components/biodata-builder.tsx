@@ -288,6 +288,10 @@ function profileCompletion(draft: ProfileDraft) {
   return Math.round((completed / checks.length) * 100)
 }
 
+function previewValue(value: string, fallback: string) {
+  return value.trim() ? value : fallback
+}
+
 const assetCards: Array<{
   kind: ProfileAssetKind
   title: string
@@ -620,6 +624,34 @@ export function BiodataBuilder() {
   )
   const completion = profileCompletion(previewDraft)
   const displayAge = ageFromBirthDate(previewDraft.horoscope.birthDate) ?? previewDraft.basics.age
+  const previewName =
+    `${previewDraft.basics.firstName} ${previewDraft.basics.lastName}`.trim() || "Your name"
+  const previewAge = displayAge || "Add age"
+  const previewGender = previewValue(previewDraft.basics.gender, "Add gender")
+  const previewProfession = previewValue(previewDraft.basics.profession, "Add profession")
+  const previewDistrict = previewValue(previewDraft.basics.district, "Add district")
+  const previewReligion = previewValue(previewDraft.basics.religion, "Religion")
+  const previewLanguage = previewValue(previewDraft.basics.language, "Language")
+  const previewHeight = previewDraft.basics.heightCm.trim() ? `${previewDraft.basics.heightCm} cm` : "Height"
+  const previewHoroscope =
+    previewDraft.horoscope.nakath && previewDraft.horoscope.lagna
+      ? `${previewDraft.horoscope.nakath} • ${previewDraft.horoscope.lagna}`
+      : "Add nakath and lagna"
+  const previewSummary = previewValue(
+    previewDraft.family.summary,
+    "Add a short personal summary to shape the biodata cover note.",
+  )
+  const previewPreferenceLine =
+    previewDraft.preferences.ageMin && previewDraft.preferences.ageMax
+      ? `Age ${previewDraft.preferences.ageMin} to ${previewDraft.preferences.ageMax}`
+      : "Set your preferred age range"
+  const previewPreferenceContext = [
+    previewDraft.preferences.preferredDistrict && `from ${previewDraft.preferences.preferredDistrict}`,
+    previewDraft.preferences.religionPreference && previewDraft.preferences.religionPreference,
+    previewDraft.preferences.professionPreference && `with a ${previewDraft.preferences.professionPreference.toLowerCase()}`,
+  ]
+    .filter(Boolean)
+    .join(", ")
   const documentHref = user ? `/biodata/document?profileId=${user.uid}` : "/biodata/document"
   const nicStatus = getVerificationStatus(previewDraft, "nic")
   const selfieStatus = getVerificationStatus(previewDraft, "selfie")
@@ -1609,12 +1641,9 @@ export function BiodataBuilder() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-xs uppercase tracking-[0.26em] text-muted-foreground">Live biodata preview</p>
-                      <CardTitle className="mt-2 text-2xl text-foreground">
-                        {previewDraft.basics.firstName} {previewDraft.basics.lastName}
-                      </CardTitle>
+                      <CardTitle className="mt-2 text-2xl text-foreground">{previewName}</CardTitle>
                       <CardDescription className="mt-2 text-sm leading-6 text-muted-foreground">
-                        {displayAge} years • {previewDraft.basics.gender} • {previewDraft.basics.profession} •{" "}
-                        {previewDraft.basics.district}
+                        {previewAge} • {previewGender} • {previewProfession} • {previewDistrict}
                       </CardDescription>
                     </div>
                     <Badge className="rounded-full bg-primary/90 px-3 py-1 text-primary-foreground">
@@ -1635,32 +1664,30 @@ export function BiodataBuilder() {
                     <ProfilePhotoCard
                       photoUrl={resolvedPreviewPhotoUrl}
                       photoPath={previewDraft.media.profilePhotoPath}
-                      displayName={`${previewDraft.basics.firstName} ${previewDraft.basics.lastName}`.trim()}
+                      displayName={previewName}
                       visibility={previewDraft.privacy.photoVisibility}
                     />
                   </div>
 
                   <div className="flex flex-wrap gap-2">
                     <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1">
-                      {previewDraft.basics.religion}
+                      {previewReligion}
                     </Badge>
                     <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1">
-                      {previewDraft.basics.language}
+                      {previewLanguage}
                     </Badge>
                     <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1">
-                      {previewDraft.basics.gender}
+                      {previewGender}
                     </Badge>
                     <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1">
-                      {previewDraft.basics.heightCm} cm
+                      {previewHeight}
                     </Badge>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
                       <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Horoscope</p>
-                      <p className="mt-2 text-sm font-medium text-foreground">
-                        {previewDraft.horoscope.nakath} • {previewDraft.horoscope.lagna}
-                      </p>
+                      <p className="mt-2 text-sm font-medium text-foreground">{previewHoroscope}</p>
                       <p className="mt-2 text-xs leading-5 text-muted-foreground">
                         {horoscopeReady
                           ? `Birth date ${previewDraft.horoscope.birthDate} and time ${previewDraft.horoscope.birthTime} are captured for Porondam context.`
@@ -1687,7 +1714,7 @@ export function BiodataBuilder() {
                       <HeartHandshake className="h-4 w-4 text-primary" />
                       <p className="text-sm font-semibold text-foreground">Summary for the biodata cover note</p>
                     </div>
-                    <p className="mt-3 text-sm leading-7 text-muted-foreground">{previewDraft.family.summary}</p>
+                    <p className="mt-3 text-sm leading-7 text-muted-foreground">{previewSummary}</p>
                   </div>
 
                   <div className="space-y-3">
@@ -1766,13 +1793,14 @@ export function BiodataBuilder() {
                   <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-5">
                     <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Partner preference snapshot</p>
                     <p className="mt-3 text-sm leading-7 text-foreground">
-                      Age {previewDraft.preferences.ageMin} to {previewDraft.preferences.ageMax}, preferably from{" "}
-                      {previewDraft.preferences.preferredDistrict}, {previewDraft.preferences.religionPreference}, with a{" "}
-                      {previewDraft.preferences.professionPreference.toLowerCase()}.{" "}
+                      {previewPreferenceLine}
+                      {previewPreferenceContext ? `, preferably ${previewPreferenceContext}.` : "."}{" "}
                       {previewDraft.preferences.willingToMigrate
                         ? "Open to diaspora / relocation."
-                        : "Prefers Sri Lanka based settling."} {" "}
-                      {previewDraft.preferences.expectedFamilySetup} setup desired.
+                        : "Prefers Sri Lanka based settling."}{" "}
+                      {previewDraft.preferences.expectedFamilySetup
+                        ? `${previewDraft.preferences.expectedFamilySetup} setup desired.`
+                        : "Add family setup and career expectations to complete this section."}
                     </p>
                   </div>
 

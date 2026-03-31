@@ -11,7 +11,7 @@ export interface ProfileDraft {
   basics: {
     firstName: string
     lastName: string
-    gender: Gender
+    gender: Gender | ""
     age: string
     heightCm: string
     profession: string
@@ -147,40 +147,39 @@ export const spouseCareerOptions = ["Working", "Non-working", "Flexible"]
 
 export const initialProfileDraft: ProfileDraft = {
   basics: {
-    firstName: "Nadeesha",
-    lastName: "Fernando",
-    gender: "Female",
-    age: "29",
-    heightCm: "165",
-    profession: "Architect",
-    district: "Colombo",
-    religion: "Buddhist",
-    language: "Sinhala",
+    firstName: "",
+    lastName: "",
+    gender: "",
+    age: "",
+    heightCm: "",
+    profession: "",
+    district: "",
+    religion: "",
+    language: "",
   },
   horoscope: {
-    birthDate: "1996-05-15",
-    nakath: "Rohini",
-    lagna: "Kanya",
-    birthTime: "05:42",
-    birthPlace: "Colombo",
+    birthDate: "",
+    nakath: "",
+    lagna: "",
+    birthTime: "",
+    birthPlace: "",
   },
   family: {
-    education: "Bachelor's degree",
-    fatherOccupation: "Retired banker",
-    motherOccupation: "Teacher",
-    siblings: "1 sibling",
-    summary:
-      "Warm, grounded, and family-oriented. Looking for a serious introduction that can begin respectfully and move at a thoughtful pace.",
+    education: "",
+    fatherOccupation: "",
+    motherOccupation: "",
+    siblings: "",
+    summary: "",
   },
   preferences: {
-    ageMin: "27",
-    ageMax: "33",
-    preferredDistrict: "Colombo",
-    religionPreference: "Buddhist",
-    professionPreference: "Professional or business background",
-    willingToMigrate: true,
-    expectedFamilySetup: "Flexible",
-    spouseCareerExpectation: "Working",
+    ageMin: "",
+    ageMax: "",
+    preferredDistrict: "",
+    religionPreference: "",
+    professionPreference: "",
+    willingToMigrate: false,
+    expectedFamilySetup: "",
+    spouseCareerExpectation: "",
   },
   privacy: {
     photoVisibility: "blurred",

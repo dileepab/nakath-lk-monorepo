@@ -1,4 +1,8 @@
+import path from "node:path"
+import { fileURLToPath } from "node:url"
 import withPWAInit from "@ducanh2912/next-pwa"
+
+const workspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 
 const withPWA = withPWAInit({
   dest: "public",
@@ -12,6 +16,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  transpilePackages: ["@acme/core"],
   images: {
     unoptimized: true,
   },
@@ -20,7 +25,9 @@ const nextConfig = {
     externalDir: true,
   },
   allowedDevOrigins: ['127.0.0.1', 'localhost', '192.168.1.19', '[::1]'],
-  turbopack: {},
+  turbopack: {
+    root: workspaceRoot,
+  },
 }
 
 export default withPWA(nextConfig)
