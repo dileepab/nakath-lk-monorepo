@@ -44,6 +44,11 @@ type ReviewerSession = {
   reason?: string
 }
 
+type ApiError = {
+  error?: string
+  reason?: string
+}
+
 type WorkspaceStatus = "checking" | "signed-out" | "setup-required" | "access-denied" | "ready" | "error"
 
 function statusTone(status: VerificationState) {
@@ -108,7 +113,8 @@ async function fetchReviewerSession(idToken: string) {
   })
 
   if (!response.ok) {
-    throw new Error("Could not verify reviewer session.")
+    const payload = (await response.json().catch(() => null)) as ApiError | null
+    throw new Error(payload?.error ?? payload?.reason ?? "Could not verify reviewer session.")
   }
 
   return (await response.json()) as ReviewerSession
@@ -122,7 +128,8 @@ async function fetchReviewQueue(idToken: string) {
   })
 
   if (!response.ok) {
-    throw new Error("Could not load review queue.")
+    const payload = (await response.json().catch(() => null)) as ApiError | null
+    throw new Error(payload?.error ?? payload?.reason ?? "Could not load review queue.")
   }
 
   const payload = (await response.json()) as {
@@ -220,6 +227,7 @@ export function ReviewWorkspace() {
   const [reviewerSession, setReviewerSession] = useState<ReviewerSession | null>(null)
   const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>([])
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null)
 
   useEffect(() => {
     if (authLoading) return
@@ -229,6 +237,7 @@ export function ReviewWorkspace() {
       setReviewQueue([])
       setSelectedProfileId(null)
       setDraft(null)
+      setWorkspaceError(null)
       setWorkspaceStatus("signed-out")
       return
     }
@@ -237,6 +246,7 @@ export function ReviewWorkspace() {
 
     async function bootstrapWorkspace() {
       setWorkspaceStatus("checking")
+      setWorkspaceError(null)
 
       try {
         if (!user) return
@@ -269,12 +279,17 @@ export function ReviewWorkspace() {
         setSelectedProfileId(reviewData.profiles[0]?.userId ?? null)
         setDraft(reviewData.profiles[0]?.draft ?? null)
         setWorkspaceStatus("ready")
-      } catch {
+      } catch (error) {
         if (cancelled) return
         setReviewerSession(null)
         setReviewQueue([])
         setSelectedProfileId(null)
         setDraft(null)
+        setWorkspaceError(
+          error instanceof Error
+            ? error.message
+            : "The protected reviewer session did not finish cleanly. Check whether the allowlisted email is deployed and whether /api/review/session or /api/review/profiles is returning an error.",
+        )
         setWorkspaceStatus("error")
       }
     }
@@ -412,7 +427,7 @@ export function ReviewWorkspace() {
     return (
       <EmptyWorkspaceState
         title="Reviewer workspace could not load"
-        description="The protected reviewer session did not finish cleanly. A refresh usually clears it; if not, we should check the Admin SDK env values and the review API responses next."
+        description={workspaceError ?? "The protected reviewer session did not finish cleanly. A refresh usually clears it; if not, we should check the Admin SDK env values and the review API responses next."}
         primaryHref="/review"
         primaryLabel="Reload review"
         secondaryHref="/profiles"
