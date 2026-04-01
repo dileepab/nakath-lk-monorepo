@@ -22,7 +22,6 @@ import { ProfilePhotoCard } from "@/components/profile-photo-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { getBrowseProfileFixture, type BrowseProfileFixture } from "@acme/core"
 import {
   initialProfileDraft,
   ageFromBirthDate,
@@ -33,6 +32,7 @@ import {
 import { calculatePorondamPreview } from "@acme/core"
 import {
   isFirebaseConfigured,
+  loadPublicProfileDraftFromBackend,
   loadOwnProfileDraftFromBackend,
 } from "@/lib/profile-store"
 import { getReceivedMatches, getSentMatches, sendMatchRequest } from "@/lib/match-api"
@@ -124,9 +124,15 @@ type RelationshipState = {
   matchId: string
 }
 
+type BrowseProfile = {
+  id: string
+  source: "backend" | "current-user"
+  draft: ProfileDraft
+}
+
 export function ProfileDetailPage({ profileId }: { profileId: string }) {
   const { user, loading: authLoading } = useAuth()
-  const [profile, setProfile] = useState<BrowseProfileFixture | null>(null)
+  const [profile, setProfile] = useState<BrowseProfile | null>(null)
   const [status, setStatus] = useState<"loading" | "ready" | "not-found" | "sign-in-required">("loading")
   const [referenceDraft, setReferenceDraft] = useState<ProfileDraft>(initialProfileDraft)
   const [referenceLabel, setReferenceLabel] = useState("Compared against the launch demo biodata.")
@@ -174,9 +180,8 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
           }
 
           setProfile({
-            id: `current-${user.uid}`,
+            id: user.uid,
             source: "current-user",
-            matchScore: 19,
             draft,
           })
           setStatus("ready")
@@ -192,9 +197,46 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
       }
     }
 
-    const fixture = getBrowseProfileFixture(profileId)
-    setProfile(fixture)
-    setStatus(fixture ? "ready" : "not-found")
+    if (authLoading) {
+      setStatus("loading")
+      return
+    }
+
+    if (!user || !isFirebaseConfigured()) {
+      setProfile(null)
+      setStatus("sign-in-required")
+      return
+    }
+
+    let cancelled = false
+    setStatus("loading")
+
+    void loadPublicProfileDraftFromBackend(profileId)
+      .then((draft) => {
+        if (cancelled) return
+
+        if (!draft) {
+          setProfile(null)
+          setStatus("not-found")
+          return
+        }
+
+        setProfile({
+          id: profileId,
+          source: "backend",
+          draft,
+        })
+        setStatus("ready")
+      })
+      .catch(() => {
+        if (cancelled) return
+        setProfile(null)
+        setStatus("not-found")
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [authLoading, profileId, user])
 
   useEffect(() => {

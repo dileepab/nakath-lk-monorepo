@@ -21,7 +21,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { browseProfileFixtures, type BrowseProfileFixture } from "@acme/core"
 import {
   initialProfileDraft,
   ageFromBirthDate,
@@ -32,7 +31,11 @@ import {
 } from "@acme/core"
 import { calculatePorondamPreview } from "@acme/core"
 import { getFirebaseAuth } from "@/lib/firebase-client"
-import { isFirebaseConfigured, loadOwnProfileDraftFromBackend } from "@/lib/profile-store"
+import {
+  isFirebaseConfigured,
+  listPublicProfileDraftsFromBackend,
+  loadOwnProfileDraftFromBackend,
+} from "@/lib/profile-store"
 import { getReceivedMatches, getSentMatches, sendMatchRequest } from "@/lib/match-api"
 import { cn } from "@/lib/utils"
 
@@ -93,13 +96,19 @@ type RelationshipState = {
   matchId: string
 }
 
+type BrowseProfile = {
+  id: string
+  source: "backend" | "current-user"
+  draft: ProfileDraft
+}
+
 function ProfileBrowseCard({
   profile,
   referenceDraft,
   currentUserUid,
   relationship,
 }: {
-  profile: BrowseProfileFixture
+  profile: BrowseProfile
   referenceDraft: ProfileDraft
   currentUserUid: string | null
   relationship?: RelationshipState
@@ -287,7 +296,8 @@ function ProfileBrowseCard({
 
 export function ProfileBrowser() {
   const { user, loading: authLoading } = useAuth()
-  const [currentUserProfile, setCurrentUserProfile] = useState<BrowseProfileFixture | null>(null)
+  const [currentUserProfile, setCurrentUserProfile] = useState<BrowseProfile | null>(null)
+  const [publicProfiles, setPublicProfiles] = useState<BrowseProfile[]>([])
   const [activeFilter, setActiveFilter] = useState<BrowseFilter>("all")
   const [query, setQuery] = useState("")
   const [loadingProfile, setLoadingProfile] = useState(false)
@@ -296,26 +306,40 @@ export function ProfileBrowser() {
   useEffect(() => {
     if (authLoading || !user || !isFirebaseConfigured()) {
       setCurrentUserProfile(null)
+      setPublicProfiles([])
       return
     }
 
     let cancelled = false
     setLoadingProfile(true)
 
-    void Promise.all([loadOwnProfileDraftFromBackend(user.uid), getReceivedMatches(user.uid), getSentMatches(user.uid)])
-      .then(([draft, received, sent]) => {
+    void Promise.all([
+      loadOwnProfileDraftFromBackend(user.uid),
+      listPublicProfileDraftsFromBackend(),
+      getReceivedMatches(user.uid),
+      getSentMatches(user.uid),
+    ]).then(([draft, listedProfiles, received, sent]) => {
         if (cancelled) return
 
         if (!draft) {
           setCurrentUserProfile(null)
         } else {
           setCurrentUserProfile({
-            id: `current-${user.uid}`,
+            id: user.uid,
             source: "current-user",
-            matchScore: 19,
             draft,
           })
         }
+
+        setPublicProfiles(
+          listedProfiles
+            .filter((profile) => profile.id !== user.uid)
+            .map((profile) => ({
+              id: profile.id,
+              source: "backend",
+              draft: profile.draft,
+            })),
+        )
 
         const nextRelationships: Record<string, RelationshipState> = {}
 
@@ -349,7 +373,7 @@ export function ProfileBrowser() {
   }, [authLoading, user])
 
   const profiles = useMemo(() => {
-    const merged = currentUserProfile ? [currentUserProfile, ...browseProfileFixtures] : browseProfileFixtures
+    const merged = publicProfiles
 
     return merged.filter((profile) => {
       if (activeFilter === "verified" && !isFullyVerified(profile.draft)) return false
@@ -371,7 +395,7 @@ export function ProfileBrowser() {
 
       return haystack.includes(normalizedQuery)
     })
-  }, [activeFilter, currentUserProfile, query])
+  }, [activeFilter, publicProfiles, query])
   const referenceDraft = currentUserProfile?.draft ?? initialProfileDraft
 
   const verifiedCount = profiles.filter((profile) => isFullyVerified(profile.draft)).length

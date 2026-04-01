@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore"
+import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from "firebase/firestore"
 
 import { getFirebaseDb, isFirebaseConfigured } from "@/lib/firebase-client"
 import { initialProfileDraft, mergeProfileDraft, syncVerificationState, type ProfileDraft } from "@acme/core"
@@ -175,6 +175,23 @@ export async function loadPublicProfileDraftFromBackend(userId: string) {
   if (!snapshot.exists()) return null
 
   return fromFirestoreProfileRecord(snapshot.data() as FirestoreProfileRecord)
+}
+
+export async function listPublicProfileDraftsFromBackend() {
+  const db = getFirebaseDb()
+  const snapshot = await getDocs(collection(db, "profiles"))
+
+  return snapshot.docs
+    .map((document) => {
+      const draft = fromFirestoreProfileRecord(document.data() as FirestoreProfileRecord)
+      if (!draft) return null
+
+      return {
+        id: document.id,
+        draft,
+      }
+    })
+    .filter((profile): profile is { id: string; draft: ProfileDraft } => Boolean(profile))
 }
 
 export async function loadOwnProfileDraftFromBackend(userId: string) {
