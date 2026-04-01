@@ -11,9 +11,9 @@ function normalizePrivateKey(value: string) {
 
 export function isFirebaseAdminConfigured() {
   return Boolean(
-    process.env.FIREBASE_ADMIN_PROJECT_ID &&
-      process.env.FIREBASE_ADMIN_CLIENT_EMAIL &&
-      process.env.FIREBASE_ADMIN_PRIVATE_KEY,
+    process.env.APP_FIREBASE_ADMIN_PROJECT_ID &&
+      process.env.APP_FIREBASE_ADMIN_CLIENT_EMAIL &&
+      process.env.APP_FIREBASE_ADMIN_PRIVATE_KEY,
   )
 }
 
@@ -26,9 +26,9 @@ function getFirebaseAdminApp() {
     ? getApp()
     : initializeApp({
         credential: cert({
-          projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-          privateKey: normalizePrivateKey(process.env.FIREBASE_ADMIN_PRIVATE_KEY ?? ""),
+          projectId: process.env.APP_FIREBASE_ADMIN_PROJECT_ID,
+          clientEmail: process.env.APP_FIREBASE_ADMIN_CLIENT_EMAIL,
+          privateKey: normalizePrivateKey(process.env.APP_FIREBASE_ADMIN_PRIVATE_KEY ?? ""),
         }),
         storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
       })

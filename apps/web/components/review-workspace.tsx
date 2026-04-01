@@ -389,8 +389,8 @@ export function ReviewWorkspace() {
           <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
             <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Required env</p>
             <p className="mt-2 text-sm leading-6 text-foreground">
-              Add <code>FIREBASE_ADMIN_PROJECT_ID</code>, <code>FIREBASE_ADMIN_CLIENT_EMAIL</code>,{" "}
-              <code>FIREBASE_ADMIN_PRIVATE_KEY</code>, and at least one email in <code>ADMIN_EMAILS</code> or{" "}
+              Add <code>APP_FIREBASE_ADMIN_PROJECT_ID</code>, <code>APP_FIREBASE_ADMIN_CLIENT_EMAIL</code>,{" "}
+              <code>APP_FIREBASE_ADMIN_PRIVATE_KEY</code>, and at least one email in <code>ADMIN_EMAILS</code> or{" "}
               <code>REVIEWER_EMAILS</code>.
             </p>
             {reviewerSession?.reason ? (

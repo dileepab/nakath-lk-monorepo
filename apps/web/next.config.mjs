@@ -16,11 +16,10 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  transpilePackages: ["@acme/core"],
+  transpilePackages: ["@acme/core", "firebase-admin"],
   images: {
     unoptimized: true,
   },
-  output: 'standalone',
   experimental: {
     externalDir: true,
   },
