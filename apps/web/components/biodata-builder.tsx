@@ -20,6 +20,7 @@ import {
 
 import { useAuth } from "@/components/auth-provider"
 import { AstrologyBackground } from "@/components/astrology-background"
+import { FamilyShareLinkManager } from "@/components/family-share-link-manager"
 import { BiodataSharePanel } from "@/components/biodata-share-panel"
 import { ImageEditDialog } from "@/components/image-edit-dialog"
 import { MediaPreviewDialog } from "@/components/media-preview-dialog"
@@ -787,6 +788,12 @@ export function BiodataBuilder() {
                   description="Keep the sharing tone aligned with your selected biodata mode. Use the printable view, copy a family-friendly note, or move it into WhatsApp without exposing contact details too early."
                 />
               </div>
+
+              {user ? (
+                <div className="mt-4 max-w-4xl">
+                  <FamilyShareLinkManager draft={previewDraft} />
+                </div>
+              ) : null}
 
           </div>
 

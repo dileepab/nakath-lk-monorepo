@@ -7,6 +7,7 @@ import { ArrowLeft, Database, PencilLine } from "lucide-react"
 
 import { useAuth } from "@/components/auth-provider"
 import { BiodataDocument } from "@/components/biodata-document"
+import { FamilyShareLinkManager } from "@/components/family-share-link-manager"
 import { BiodataSharePanel } from "@/components/biodata-share-panel"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -108,6 +109,12 @@ export function BiodataDocumentPage() {
           appearance="paper"
         />
       </div>
+
+      {user && (!explicitProfileId || explicitProfileId === user.uid) ? (
+        <div className="mx-auto mb-6 max-w-[880px] print-hidden">
+          <FamilyShareLinkManager draft={draft} appearance="paper" />
+        </div>
+      ) : null}
 
       <BiodataDocument draft={draft} />
     </main>

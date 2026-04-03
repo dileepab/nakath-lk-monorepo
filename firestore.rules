@@ -19,6 +19,10 @@ service cloud.firestore {
       }
     }
 
+    match /shareLinks/{shareLinkId} {
+      allow read, write: if false;
+    }
+
     // Matches Collection
     match /matches/{matchId} {
       // Users can only read matches where they are the sender or receiver

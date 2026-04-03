@@ -18,6 +18,7 @@ import {
 
 import { useAuth } from "@/components/auth-provider"
 import { AstrologyBackground } from "@/components/astrology-background"
+import { FamilyShareLinkManager } from "@/components/family-share-link-manager"
 import { ProfilePhotoCard } from "@/components/profile-photo-card"
 import { BiodataSharePanel } from "@/components/biodata-share-panel"
 import { ShortlistToggleButton } from "@/components/shortlist-toggle-button"
@@ -713,6 +714,8 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                     }
                     description=""
                   />
+
+                  {profile.source === "current-user" ? <FamilyShareLinkManager draft={draft} /> : null}
                 </CardContent>
               </Card>
 
