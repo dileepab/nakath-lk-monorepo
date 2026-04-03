@@ -22,7 +22,37 @@ function isShareLinkRequest(request: Request) {
   return new URL(request.url).searchParams.get("resource") === "share-link"
 }
 
+function firstHeaderValue(value: string | null) {
+  return value?.split(",")[0]?.trim() || null
+}
+
 function originFromRequest(request: Request) {
+  const configuredOrigin = process.env.APP_PUBLIC_ORIGIN?.trim().replace(/\/+$/, "")
+  if (configuredOrigin) {
+    return configuredOrigin
+  }
+
+  const originHeader = firstHeaderValue(request.headers.get("origin"))
+  if (originHeader?.startsWith("http://") || originHeader?.startsWith("https://")) {
+    return originHeader.replace(/\/+$/, "")
+  }
+
+  const forwardedHost =
+    firstHeaderValue(request.headers.get("x-fh-requested-host")) ||
+    firstHeaderValue(request.headers.get("x-forwarded-host")) ||
+    firstHeaderValue(request.headers.get("host"))
+  const forwardedProto =
+    firstHeaderValue(request.headers.get("x-forwarded-proto")) ||
+    firstHeaderValue(request.headers.get("x-forwarded-protocol"))
+
+  if (forwardedHost && forwardedHost !== "0.0.0.0" && forwardedHost !== "0.0.0.0:8080") {
+    const protocol =
+      forwardedProto ||
+      (forwardedHost.startsWith("localhost") || forwardedHost.startsWith("127.0.0.1") ? "http" : "https")
+
+    return `${protocol}://${forwardedHost}`
+  }
+
   return new URL(request.url).origin
 }
 
