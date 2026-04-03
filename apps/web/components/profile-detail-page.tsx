@@ -19,6 +19,7 @@ import {
 import { useAuth } from "@/components/auth-provider"
 import { AstrologyBackground } from "@/components/astrology-background"
 import { ProfilePhotoCard } from "@/components/profile-photo-card"
+import { ShortlistToggleButton } from "@/components/shortlist-toggle-button"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -35,6 +36,7 @@ import {
   loadPublicProfileDraftFromBackend,
   loadOwnProfileDraftFromBackend,
 } from "@/lib/profile-store"
+import { listShortlistEntries, removeProfileFromShortlist, saveProfileToShortlist } from "@/lib/shortlist-store"
 import { getReceivedMatches, getSentMatches, sendMatchRequest } from "@/lib/match-api"
 import { cn } from "@/lib/utils"
 
@@ -140,6 +142,8 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
   const [relationship, setRelationship] = useState<RelationshipState | null>(null)
   const [contactReveal, setContactReveal] = useState<ContactReveal | null>(null)
   const [loadingContact, setLoadingContact] = useState(false)
+  const [isShortlisted, setIsShortlisted] = useState(false)
+  const [savingShortlist, setSavingShortlist] = useState(false)
 
   const handleRequest = async () => {
     if (!user || !profile || profile.source === "current-user") return
@@ -288,6 +292,31 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
     }
   }, [authLoading, profileId, user])
 
+  useEffect(() => {
+    if (!user || profileId === "me" || !isFirebaseConfigured()) {
+      setIsShortlisted(false)
+      return
+    }
+
+    let cancelled = false
+
+    void listShortlistEntries(user.uid)
+      .then((entries) => {
+        if (!cancelled) {
+          setIsShortlisted(entries.some((entry) => entry.profileId === profileId))
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setIsShortlisted(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [profileId, user])
+
   const displayName = useMemo(() => {
     if (!profile) return ""
     return `${profile.draft.basics.firstName} ${profile.draft.basics.lastName}`.trim()
@@ -296,6 +325,24 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
   const hasPendingIncoming = relationship?.status === "pending" && relationship.direction === "incoming"
   const hasPendingOutgoing = relationship?.status === "pending" && relationship.direction === "outgoing"
   const chatHref = relationship?.matchId ? `/messages?matchId=${relationship.matchId}` : "/messages"
+
+  async function handleToggleShortlist() {
+    if (!user || !profile || profile.source === "current-user") return
+
+    setSavingShortlist(true)
+
+    try {
+      if (isShortlisted) {
+        await removeProfileFromShortlist(user.uid, profile.id)
+        setIsShortlisted(false)
+      } else {
+        await saveProfileToShortlist(user.uid, profile.id)
+        setIsShortlisted(true)
+      }
+    } finally {
+      setSavingShortlist(false)
+    }
+  }
 
   useEffect(() => {
     if (!user || !profile || !isUnlocked || !relationship?.matchId || profile.source === "current-user") {
@@ -590,6 +637,11 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                       </>
                     ) : (
                       <>
+                        <ShortlistToggleButton
+                          saved={isShortlisted}
+                          loading={savingShortlist}
+                          onClick={handleToggleShortlist}
+                        />
                         {isUnlocked ? (
                           <>
                             <Button asChild className="h-11 rounded-full bg-primary px-5 font-semibold text-primary-foreground hover:bg-primary/90">

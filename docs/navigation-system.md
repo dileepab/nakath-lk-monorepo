@@ -24,6 +24,8 @@ This document defines the intended information architecture for the Nakath.lk we
   Signed-in home for requests, approvals, messages, and reminders
 - `/profiles`
   Browse and discover profiles
+- `/saved`
+  Secondary shortlist route for saved profiles and follow-up actions
 - `/profiles/[profileId]`
   Canonical public profile detail route
 - `/profile?profileId=...`
@@ -69,6 +71,13 @@ Conditional reviewer item:
 
 - Review
 
+### Secondary shortcuts
+
+These are meaningful destinations but not primary-nav items:
+
+- Saved profiles
+- Biodata document
+
 ## Canonical Meanings
 
 - `Dashboard`
@@ -77,6 +86,8 @@ Conditional reviewer item:
   Discovery and introduction requests.
 - `Messages`
   Only approved conversations.
+- `Saved`
+  A calm follow-up space for profiles the user wants to revisit later.
 - `My Biodata`
   Editing and maintaining the user’s own profile.
 - `Biodata document`
@@ -92,6 +103,7 @@ Preferred long-term route set:
 
 - `/dashboard`
 - `/profiles`
+- `/saved`
 - `/profiles/[profileId]`
 - `/messages`
 - `/biodata`
@@ -124,7 +136,7 @@ This fallback should stay only until Hosting behavior is reliable enough to make
   - My Biodata
   - Settings
 
-Reviewer access remains top-bar only to avoid overloading the bottom navigation.
+Reviewer access remains top-bar only to avoid overloading the bottom navigation. Saved profiles should stay reachable from the top bar and from browse/dashboard entry points rather than expanding the tab set too early.
 
 ## Label Decisions
 

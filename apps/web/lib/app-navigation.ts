@@ -57,7 +57,7 @@ export const reviewerNavItem: AppNavItem = {
   icon: ShieldCheck,
 }
 
-const appRoutePrefixes = ["/dashboard", "/profiles", "/profile", "/messages", "/biodata", "/settings", "/review"]
+const appRoutePrefixes = ["/dashboard", "/profiles", "/profile", "/saved", "/messages", "/biodata", "/settings", "/review"]
 
 export function isAppChromeRoute(pathname: string) {
   return appRoutePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
@@ -71,6 +71,10 @@ export function getActiveAppNavKey(pathname: string): AppNavKey | null {
 
   if (pathname === "/biodata" || pathname.startsWith("/biodata/")) {
     return "biodata"
+  }
+
+  if (pathname === "/saved") {
+    return "browse"
   }
 
   if (pathname === "/profiles" || pathname.startsWith("/profiles/") || pathname === "/profile") {

@@ -17,6 +17,7 @@ import {
 import { useAuth } from "@/components/auth-provider"
 import { AstrologyBackground } from "@/components/astrology-background"
 import { ProfilePhotoCard } from "@/components/profile-photo-card"
+import { ShortlistToggleButton } from "@/components/shortlist-toggle-button"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -36,6 +37,7 @@ import {
   listPublicProfileDraftsFromBackend,
   loadOwnProfileDraftFromBackend,
 } from "@/lib/profile-store"
+import { listShortlistEntries, removeProfileFromShortlist, saveProfileToShortlist } from "@/lib/shortlist-store"
 import { getReceivedMatches, getSentMatches, sendMatchRequest } from "@/lib/match-api"
 import { cn } from "@/lib/utils"
 
@@ -107,11 +109,17 @@ function ProfileBrowseCard({
   referenceDraft,
   currentUserUid,
   relationship,
+  isShortlisted,
+  savingShortlist,
+  onToggleShortlist,
 }: {
   profile: BrowseProfile
   referenceDraft: ProfileDraft
   currentUserUid: string | null
   relationship?: RelationshipState
+  isShortlisted: boolean
+  savingShortlist: boolean
+  onToggleShortlist: (profileId: string, shouldSave: boolean) => void
 }) {
   const [requestState, setRequestState] = useState<"idle" | "loading" | "sent">("idle")
   const isUnlocked = relationship?.status === "approved"
@@ -284,6 +292,12 @@ function ProfileBrowseCard({
                             : "Request contact"}
                     </Button>
                   )}
+                  <ShortlistToggleButton
+                    saved={isShortlisted}
+                    loading={savingShortlist}
+                    disabled={!currentUserUid}
+                    onClick={() => onToggleShortlist(profile.id, !isShortlisted)}
+                  />
                 </>
               )}
             </div>
@@ -302,11 +316,14 @@ export function ProfileBrowser() {
   const [query, setQuery] = useState("")
   const [loadingProfile, setLoadingProfile] = useState(false)
   const [relationships, setRelationships] = useState<Record<string, RelationshipState>>({})
+  const [shortlistedIds, setShortlistedIds] = useState<Record<string, true>>({})
+  const [savingShortlistId, setSavingShortlistId] = useState<string | null>(null)
 
   useEffect(() => {
     if (authLoading || !user || !isFirebaseConfigured()) {
       setCurrentUserProfile(null)
       setPublicProfiles([])
+      setShortlistedIds({})
       return
     }
 
@@ -318,7 +335,8 @@ export function ProfileBrowser() {
       listPublicProfileDraftsFromBackend(),
       getReceivedMatches(user.uid),
       getSentMatches(user.uid),
-    ]).then(([draft, listedProfiles, received, sent]) => {
+      listShortlistEntries(user.uid),
+    ]).then(([draft, listedProfiles, received, sent, shortlistEntries]) => {
         if (cancelled) return
 
         if (!draft) {
@@ -360,6 +378,13 @@ export function ProfileBrowser() {
         }
 
         setRelationships(nextRelationships)
+
+        setShortlistedIds(
+          shortlistEntries.reduce<Record<string, true>>((accumulator, entry) => {
+            accumulator[entry.profileId] = true
+            return accumulator
+          }, {}),
+        )
       })
       .finally(() => {
         if (!cancelled) {
@@ -400,6 +425,29 @@ export function ProfileBrowser() {
 
   const verifiedCount = profiles.filter((profile) => isFullyVerified(profile.draft)).length
   const familyReviewCount = profiles.filter((profile) => profile.draft.privacy.photoVisibility === "family").length
+  const savedCount = Object.keys(shortlistedIds).length
+
+  async function handleToggleShortlist(profileId: string, shouldSave: boolean) {
+    if (!user) return
+
+    setSavingShortlistId(profileId)
+
+    try {
+      if (shouldSave) {
+        await saveProfileToShortlist(user.uid, profileId)
+        setShortlistedIds((current) => ({ ...current, [profileId]: true }))
+      } else {
+        await removeProfileFromShortlist(user.uid, profileId)
+        setShortlistedIds((current) => {
+          const next = { ...current }
+          delete next[profileId]
+          return next
+        })
+      }
+    } finally {
+      setSavingShortlistId(null)
+    }
+  }
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0B0B0C] text-[#F9F9F7]">
@@ -420,6 +468,15 @@ export function ProfileBrowser() {
               <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1">
                 Profile list
               </Badge>
+              {user ? (
+                <Button
+                  asChild
+                  variant="outline"
+                  className="h-9 rounded-full border-white/10 bg-white/[0.04] px-4 text-foreground hover:bg-white/[0.08]"
+                >
+                  <Link href="/saved">Saved profiles {savedCount ? `(${savedCount})` : ""}</Link>
+                </Button>
+              ) : null}
             </div>
           </div>
 
@@ -435,7 +492,7 @@ export function ProfileBrowser() {
             </div>
 
             <Card className="border-white/10 bg-white/[0.04] shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl">
-              <CardContent className="grid gap-4 px-6 py-6 sm:grid-cols-3">
+              <CardContent className="grid gap-4 px-6 py-6 sm:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-primary" />
@@ -456,6 +513,13 @@ export function ProfileBrowser() {
                     <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Family-first</p>
                   </div>
                   <p className="mt-3 text-3xl font-semibold text-foreground">{familyReviewCount}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-center gap-2">
+                    <HeartHandshake className="h-4 w-4 text-primary" />
+                    <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Saved</p>
+                  </div>
+                  <p className="mt-3 text-3xl font-semibold text-foreground">{savedCount}</p>
                 </div>
               </CardContent>
             </Card>
@@ -528,6 +592,9 @@ export function ProfileBrowser() {
                     referenceDraft={referenceDraft}
                     currentUserUid={user?.uid ?? null}
                     relationship={relationships[profile.id]}
+                    isShortlisted={Boolean(shortlistedIds[profile.id])}
+                    savingShortlist={savingShortlistId === profile.id}
+                    onToggleShortlist={handleToggleShortlist}
                   />
                 ))
               ) : (

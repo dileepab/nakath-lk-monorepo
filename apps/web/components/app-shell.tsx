@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
-import { LogOut, Star } from "lucide-react"
+import { Bookmark, LogOut, Star } from "lucide-react"
 
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
@@ -103,6 +103,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const accountLabel = displayNameFromUser(user?.email, user?.displayName)
+  const savedPageActive = pathname === "/saved"
 
   return (
     <>
@@ -144,6 +145,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-2">
             {user ? (
               <>
+                <Button
+                  asChild
+                  variant="outline"
+                  className={cn(
+                    "rounded-full border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08] hover:text-white",
+                    savedPageActive ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary" : "",
+                  )}
+                >
+                  <Link href="/saved">
+                    <Bookmark className="h-4 w-4" />
+                    <span className="hidden sm:inline">Saved</span>
+                  </Link>
+                </Button>
                 <div className="hidden rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/80 md:block">
                   {accountLabel}
                 </div>
