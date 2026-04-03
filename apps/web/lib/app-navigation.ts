@@ -63,17 +63,13 @@ export function isAppChromeRoute(pathname: string) {
   return appRoutePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
 }
 
-export function getActiveAppNavKey(pathname: string, profileId: string | null): AppNavKey | null {
+export function getActiveAppNavKey(pathname: string): AppNavKey | null {
   if (pathname === "/dashboard") return "dashboard"
   if (pathname === "/messages") return "messages"
   if (pathname === "/settings") return "settings"
   if (pathname === "/review") return "review"
 
   if (pathname === "/biodata" || pathname.startsWith("/biodata/")) {
-    return "biodata"
-  }
-
-  if (pathname === "/profile" && profileId === "me") {
     return "biodata"
   }
 

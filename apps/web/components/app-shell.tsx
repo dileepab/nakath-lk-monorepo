@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { LogOut, Star } from "lucide-react"
 
@@ -29,13 +29,12 @@ function displayNameFromUser(email: string | null | undefined, displayName: stri
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const searchParams = useSearchParams()
   const router = useRouter()
   const { user, loading, signOutUser } = useAuth()
   const [hasReviewAccess, setHasReviewAccess] = useState(false)
 
   const showChrome = isAppChromeRoute(pathname)
-  const activeKey = getActiveAppNavKey(pathname, searchParams.get("profileId"))
+  const activeKey = getActiveAppNavKey(pathname)
 
   useEffect(() => {
     if (!showChrome || loading || !user) {

@@ -135,7 +135,7 @@ function ProfileBrowseCard({
   const displayName = `${draft.basics.firstName} ${draft.basics.lastName}`.trim()
   const verified = isFullyVerified(draft)
   const age = cardAge(draft)
-  const detailHref = profile.source === "current-user" ? "/profile?profileId=me" : `/profile?profileId=${profile.id}`
+  const detailHref = profile.source === "current-user" ? "/biodata" : `/profile?profileId=${profile.id}`
   const isReferenceProfile = profile.source === "current-user"
   const preview = isReferenceProfile ? null : calculatePorondamPreview(referenceDraft, draft)
 
