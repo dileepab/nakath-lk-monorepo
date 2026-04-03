@@ -11,7 +11,7 @@ const audienceTags = ["Individuals", "Parents", "Sri Lanka", "Diaspora"]
 
 export function Footer() {
   return (
-    <footer className="relative z-10 px-6 pb-10 pt-20 md:px-12 lg:px-20">
+    <footer id="site-footer" className="relative z-10 px-6 pb-10 pt-20 md:px-12 lg:px-20">
       <div className="mx-auto max-w-7xl rounded-[32px] border border-white/10 bg-white/[0.035] p-8 backdrop-blur-xl">
         <div className="grid gap-12 lg:grid-cols-[1.2fr_0.8fr_0.8fr]">
           <div>

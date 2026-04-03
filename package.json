@@ -8,7 +8,9 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
-    "lint": "turbo run lint"
+    "lint": "turbo run lint",
+    "dispatch:reminders": "node scripts/dispatch-reminders.mjs",
+    "setup:reminder-scheduler": "bash scripts/setup-reminder-scheduler.sh"
   },
   "devDependencies": {
     "turbo": "^2.0.0"

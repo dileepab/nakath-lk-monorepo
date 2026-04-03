@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore"
 
 import { authenticateRequest, isAuthenticatedResult } from "@/lib/api-auth"
 import { getFirebaseAdminDb } from "@/lib/firebase-admin"
+import { notifyMatchActivity } from "@/lib/match-activity-notifications"
 import { type MatchRequest } from "@acme/core"
 
 export async function POST(req: NextRequest) {
@@ -45,6 +46,19 @@ export async function POST(req: NextRequest) {
       },
       { merge: true },
     )
+
+    if (!snapshot.exists || snapshot.data()?.status !== "pending") {
+      try {
+        await notifyMatchActivity({
+          type: "request-received",
+          actorUserId: senderId,
+          recipientUserId: receiverId,
+          matchId: customId,
+        })
+      } catch (error) {
+        console.error("Failed to send match request notification.", error)
+      }
+    }
 
     return NextResponse.json({ match: request })
   } catch {

@@ -147,6 +147,8 @@ You can bring up the main product with Firebase first, then add the heavier inte
 
 - push notifications
   Requires `NEXT_PUBLIC_FIREBASE_VAPID_KEY` and a complete Firebase Cloud Messaging setup.
+- scheduled auspicious reminders
+  Requires `REMINDER_DISPATCH_SECRET` and a scheduler that can call the protected reminder dispatch route.
 - AI-assisted verification
   Requires AWS Rekognition credentials unless `MOCK_AI_VERIFICATION=true`.
 - AI icebreakers
@@ -195,6 +197,82 @@ If you are bringing the project up on a new machine, this order will save time:
 5. Confirm reviewer workspace works
 6. Add optional OpenAI / AWS / LiveKit / FCM integrations only after the core app is stable
 7. Deploy both `firestore.rules` and `storage.rules`
+
+## Scheduled Reminder Dispatch
+
+The app now includes a protected reminder dispatch route for:
+
+- Rahu kalaya reminders
+- Poya day reminders
+- Aluth Avurudu nekath reminders
+
+### Local dry run
+
+From the repo root:
+
+```bash
+REMINDER_DISPATCH_SECRET=your-local-secret npm run dispatch:reminders -- --dry-run
+```
+
+If your local app is not running on `http://localhost:3000`, also set:
+
+```bash
+REMINDER_DISPATCH_URL=https://your-app-url.example
+```
+
+### Production scheduler shape
+
+Use any scheduler that can send an HTTP `POST` request:
+
+- Google Cloud Scheduler
+- GitHub Actions on a schedule
+- a small server cron job
+
+The request must call:
+
+```text
+POST /api/notifications/reminders/dispatch
+```
+
+with:
+
+```text
+x-reminder-secret: <REMINDER_DISPATCH_SECRET>
+```
+
+This keeps the route protected while still allowing automated dispatch outside reviewer/admin browser sessions.
+
+### Google Cloud Scheduler quick setup
+
+From the repo root, you can create or update the scheduler job with:
+
+```bash
+REMINDER_PROJECT_ID=nakath-platform \
+REMINDER_SCHEDULER_LOCATION=asia-south1 \
+REMINDER_DISPATCH_URL=https://nakath-platform.web.app \
+REMINDER_DISPATCH_SECRET=your-shared-secret \
+npm run setup:reminder-scheduler
+```
+
+Optional overrides:
+
+- `REMINDER_JOB_NAME`
+  Defaults to `nakath-reminder-dispatch`
+- `REMINDER_SCHEDULE`
+  Defaults to `*/5 * * * *`
+- `REMINDER_TIME_ZONE`
+  Defaults to `Asia/Colombo`
+
+Current reminder lead times:
+
+- `Rahu kalaya`
+  Sent about 10 minutes before the window starts
+- `Aluth Avurudu nekath`
+  Sent about 15 minutes before the event starts
+- `Poya day`
+  Sent around 6:00 AM Sri Lanka time on the day
+
+The script will update the job if it already exists, so you can safely rerun it after changing the schedule or base URL.
 
 ## Troubleshooting
 

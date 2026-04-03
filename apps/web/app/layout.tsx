@@ -1,6 +1,10 @@
 import type { Metadata } from 'next'
 import { Plus_Jakarta_Sans } from 'next/font/google'
+import { AppShell } from '@/components/app-shell'
 import { AuthProvider } from '@/components/auth-provider'
+import { ForegroundNotificationListener } from '@/components/foreground-notification-listener'
+import { ThemeProvider } from '@/components/theme-provider'
+import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
 const plusJakarta = Plus_Jakarta_Sans({ 
@@ -39,9 +43,15 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${plusJakarta.variable} dark`} data-scroll-behavior="smooth">
+    <html lang="en" className={`${plusJakarta.variable} dark`} data-scroll-behavior="smooth" suppressHydrationWarning>
       <body className="bg-background font-sans antialiased text-foreground">
-        <AuthProvider>{children}</AuthProvider>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+          <AuthProvider>
+            <ForegroundNotificationListener />
+            <AppShell>{children}</AppShell>
+            <Toaster richColors position="top-right" />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

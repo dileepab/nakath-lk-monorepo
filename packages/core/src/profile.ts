@@ -4,6 +4,7 @@ export type BiodataShareMode = "pdf" | "whatsapp" | "family-review"
 export type VerificationState = "not-submitted" | "submitted" | "verified"
 export type Gender = "Female" | "Male" | "Other"
 export type VerificationAsset = "nic" | "selfie"
+export type ReminderLanguage = "en" | "si" | "ta"
 
 export const PROFILE_DRAFT_STORAGE_KEY = "nakath-lk-profile-draft"
 
@@ -47,6 +48,13 @@ export interface ProfileDraft {
     photoVisibility: PhotoVisibility
     contactVisibility: ContactVisibility
     biodataShareMode: BiodataShareMode
+  }
+  alerts: {
+    rahuKalaya: boolean
+    poyaDays: boolean
+    avuruduNekath: boolean
+    matchActivity: boolean
+    language: ReminderLanguage
   }
   verification: {
     nicStatus: VerificationState
@@ -186,6 +194,13 @@ export const initialProfileDraft: ProfileDraft = {
     contactVisibility: "mutual",
     biodataShareMode: "pdf",
   },
+  alerts: {
+    rahuKalaya: false,
+    poyaDays: true,
+    avuruduNekath: true,
+    matchActivity: true,
+    language: "en",
+  },
   verification: {
     nicStatus: "not-submitted",
     selfieStatus: "not-submitted",
@@ -230,6 +245,10 @@ export function mergeProfileDraft(candidate?: Partial<ProfileDraft> | null): Pro
     privacy: {
       ...initialProfileDraft.privacy,
       ...(candidate?.privacy ?? {}),
+    },
+    alerts: {
+      ...initialProfileDraft.alerts,
+      ...(candidate?.alerts ?? {}),
     },
     verification: {
       ...initialProfileDraft.verification,

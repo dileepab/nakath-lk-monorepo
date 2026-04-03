@@ -121,30 +121,33 @@ export function HeroSection() {
               <Star className="h-5 w-5 fill-primary text-primary" />
             </div>
             <div>
-              <p className="text-base font-semibold tracking-tight text-foreground">Nakath.lk</p>
-              <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">Sri Lankan Matrimony</p>
+              <p className="text-base font-semibold tracking-tight text-white">Nakath.lk</p>
+              <p className="text-xs uppercase tracking-[0.28em] text-white/70">Sri Lankan Matrimony</p>
             </div>
           </div>
 
-          <div className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
-            <a href="#trust" className="transition-colors hover:text-foreground">
+          <div className="hidden items-center gap-6 text-sm text-white/80 md:flex">
+            <a href="#trust" className="transition-colors hover:text-white">
               Why it feels safer
             </a>
-            <a href="#process" className="transition-colors hover:text-foreground">
+            <a href="#process" className="transition-colors hover:text-white">
               How it works
             </a>
-            <a href="#privacy" className="transition-colors hover:text-foreground">
+            <a href="#privacy" className="transition-colors hover:text-white">
               Privacy preview
             </a>
           </div>
 
           <div className="flex items-center gap-3">
-            <Button variant="ghost" asChild className="hidden text-muted-foreground hover:text-foreground sm:inline-flex">
-              <a href="#privacy">Privacy</a>
+            <Button variant="ghost" asChild className="hidden text-white/80 hover:text-white sm:inline-flex">
+              <a href="/profiles">Browse</a>
+            </Button>
+            <Button variant="ghost" asChild className="hidden text-white/80 hover:text-white sm:inline-flex">
+              <a href={user ? "/dashboard" : "/auth?redirectTo=%2Fdashboard"}>{user ? "Dashboard" : "Sign in"}</a>
             </Button>
             <Button asChild className="bg-primary font-semibold text-primary-foreground hover:bg-primary/90">
               <a href="/biodata">
-                Start Your Bio-Data
+                {user ? "Open My Bio-Data" : "Start Your Bio-Data"}
                 <ArrowRight className="h-4 w-4" />
               </a>
             </Button>
@@ -189,7 +192,7 @@ export function HeroSection() {
               asChild
               className="h-12 rounded-full border-white/15 bg-white/5 px-7 text-base text-foreground hover:bg-white/10"
             >
-              <a href="/profiles">Browse profile preview</a>
+              <a href="/profiles">Browse profiles</a>
             </Button>
           </div>
 
