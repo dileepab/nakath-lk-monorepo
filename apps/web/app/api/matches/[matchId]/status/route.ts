@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore"
 
 import { authenticateRequest, isAuthenticatedResult, loadAuthorizedMatch } from "@/lib/api-auth"
 import { getFirebaseAdminDb } from "@/lib/firebase-admin"
+import { notifyMatchActivity, shouldNotifyOnStatusChange } from "@/lib/match-activity-notifications"
 import { type MatchStatus } from "@acme/core"
 
 const ALLOWED_STATUSES: MatchStatus[] = ["approved", "rejected", "withdrawn"]
@@ -47,6 +48,19 @@ export async function POST(
       },
       { merge: true },
     )
+
+    if (shouldNotifyOnStatusChange(newStatus)) {
+      try {
+        await notifyMatchActivity({
+          type: "request-approved",
+          actorUserId: actorId,
+          recipientUserId: match.senderId,
+          matchId,
+        })
+      } catch (error) {
+        console.error("Failed to send match status notification.", error)
+      }
+    }
 
     return NextResponse.json({
       match: {

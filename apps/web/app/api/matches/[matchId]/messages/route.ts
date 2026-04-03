@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore"
 
 import { authenticateRequest, isAuthenticatedResult, loadAuthorizedMatch } from "@/lib/api-auth"
 import { getFirebaseAdminDb } from "@/lib/firebase-admin"
+import { notifyMatchActivity } from "@/lib/match-activity-notifications"
 import { type ChatMessage } from "@acme/core"
 
 export async function POST(
@@ -43,6 +44,18 @@ export async function POST(
       ...message,
       createdAt: FieldValue.serverTimestamp(),
     })
+
+    try {
+      await notifyMatchActivity({
+        type: "message-received",
+        actorUserId: authResult.decoded.uid,
+        recipientUserId: matchResult.match.senderId === authResult.decoded.uid ? matchResult.match.receiverId : matchResult.match.senderId,
+        matchId,
+        messageText: message.text,
+      })
+    } catch (error) {
+      console.error("Failed to send match message notification.", error)
+    }
 
     return NextResponse.json({ message })
   } catch {

@@ -375,11 +375,11 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
             <CardContent className="px-6 py-8">
               <p className="text-lg font-semibold text-foreground">Sign in to open your full profile</p>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                Sign in to view your saved profile.
+                Sign in to continue to this profile and open the full app navigation.
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Button asChild className="h-11 rounded-full bg-primary px-5 font-semibold text-primary-foreground hover:bg-primary/90">
-                  <Link href="/auth?redirectTo=%2Fprofiles%2Fme">
+                  <Link href={profileId === "me" ? "/auth?redirectTo=%2Fbiodata" : `/auth?redirectTo=${encodeURIComponent(`/profile?profileId=${profileId}`)}`}>
                     Sign in
                     <ArrowUpRight className="h-4 w-4" />
                   </Link>

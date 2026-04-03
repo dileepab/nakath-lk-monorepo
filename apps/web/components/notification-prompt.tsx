@@ -69,7 +69,8 @@ export function NotificationPrompt({ userId }: { userId: string }) {
             <div className="flex-1 text-center sm:text-left">
               <h3 className="text-sm font-semibold text-foreground">Enable Push Notifications</h3>
               <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                Get instant alerts for new match requests and private messages even when you're offline.
+                Get match updates, Poya reminders, Avurudu nekath alerts, and optional Rahu kalaya starts even when
+                you're offline.
               </p>
             </div>
             <Button 

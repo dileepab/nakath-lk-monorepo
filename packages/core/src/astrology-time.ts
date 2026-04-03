@@ -5,6 +5,10 @@ export type TimeWindow = {
 
 export type AuspiciousStatus = "auspicious" | "inauspicious" | "neutral"
 
+export const SRI_LANKA_TIME_ZONE = "Asia/Colombo"
+export const SRI_LANKA_UTC_OFFSET_MINUTES = 5.5 * 60
+const SRI_LANKA_UTC_OFFSET_MS = SRI_LANKA_UTC_OFFSET_MINUTES * 60 * 1000
+
 // Sri Lankan standard Rahu Kaalaya (Daytime simplified approximations)
 const rahuKaalayaRules = [
   { day: 0, startHour: 16, startMinute: 30, endHour: 18, endMinute: 0 }, // Sunday
@@ -16,25 +20,53 @@ const rahuKaalayaRules = [
   { day: 6, startHour: 9, startMinute: 0, endHour: 10, endMinute: 30 },  // Saturday
 ]
 
-export function getRahuKaalayaForToday(): TimeWindow {
-  const now = new Date()
-  const rule = rahuKaalayaRules.find((r) => r.day === now.getDay())
+export function toSriLankaWallClock(date: Date) {
+  return new Date(date.getTime() + SRI_LANKA_UTC_OFFSET_MS)
+}
+
+export function getSriLankaDateParts(date: Date) {
+  const wallClock = toSriLankaWallClock(date)
+
+  return {
+    year: wallClock.getUTCFullYear(),
+    monthIndex: wallClock.getUTCMonth(),
+    day: wallClock.getUTCDate(),
+    weekday: wallClock.getUTCDay(),
+    hour: wallClock.getUTCHours(),
+    minute: wallClock.getUTCMinutes(),
+  }
+}
+
+export function createSriLankaDate(
+  year: number,
+  monthIndex: number,
+  day: number,
+  hour = 0,
+  minute = 0,
+) {
+  return new Date(Date.UTC(year, monthIndex, day, hour, minute, 0, 0) - SRI_LANKA_UTC_OFFSET_MS)
+}
+
+export function getRahuKaalayaForDate(date: Date): TimeWindow {
+  const parts = getSriLankaDateParts(date)
+  const rule = rahuKaalayaRules.find((r) => r.day === parts.weekday)
 
   if (!rule) {
     // Should never reach here due to modulo 7, but fallback to 12PM for safety
     return {
-      start: new Date(now.setHours(12, 0, 0, 0)),
-      end: new Date(now.setHours(13, 30, 0, 0)),
+      start: createSriLankaDate(parts.year, parts.monthIndex, parts.day, 12, 0),
+      end: createSriLankaDate(parts.year, parts.monthIndex, parts.day, 13, 30),
     }
   }
 
-  const start = new Date(now)
-  start.setHours(rule.startHour, rule.startMinute, 0, 0)
-
-  const end = new Date(now)
-  end.setHours(rule.endHour, rule.endMinute, 0, 0)
+  const start = createSriLankaDate(parts.year, parts.monthIndex, parts.day, rule.startHour, rule.startMinute)
+  const end = createSriLankaDate(parts.year, parts.monthIndex, parts.day, rule.endHour, rule.endMinute)
 
   return { start, end }
+}
+
+export function getRahuKaalayaForToday(): TimeWindow {
+  return getRahuKaalayaForDate(new Date())
 }
 
 export function getCurrentAuspiciousStatus(): {
@@ -72,5 +104,10 @@ export function getCurrentAuspiciousStatus(): {
 }
 
 export function formatTime(date: Date) {
-  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+  return date.toLocaleTimeString("en-LK", {
+    timeZone: SRI_LANKA_TIME_ZONE,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })
 }

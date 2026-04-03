@@ -19,7 +19,6 @@ import { MediaPreviewDialog } from "@/components/media-preview-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { browseProfileFixtures, getBrowseProfileFixture } from "@acme/core"
 import { horoscopeRuleConfig } from "@acme/core"
 import { calculatePorondamPreview } from "@acme/core"
 import { getVerificationStatus, hasUploadedAsset, type ProfileDraft, type VerificationState } from "@acme/core"
@@ -47,6 +46,29 @@ type ReviewerSession = {
 type ApiError = {
   error?: string
   reason?: string
+}
+
+type ReminderDryRunResult = {
+  now: string
+  mode: "dry-run" | "send"
+  scannedProfiles: number
+  dueCount: number
+  dueReminders?: Array<{
+    userId: string
+    category: "rahu" | "poya" | "avurudu"
+    title: string
+    body: string
+    tokens: number
+    dedupeKey: string
+  }>
+}
+
+type ReminderTestResult = {
+  sent: boolean
+  tokens: number
+  successCount: number
+  failureCount: number
+  prunedTokens?: number
 }
 
 type WorkspaceStatus = "checking" | "signed-out" | "setup-required" | "access-denied" | "ready" | "error"
@@ -165,6 +187,37 @@ async function updateReviewProfile(
   return payload.profile
 }
 
+async function fetchReminderDryRun(idToken: string) {
+  const response = await fetch("/api/notifications/reminders/dispatch", {
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+    },
+  })
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as ApiError | null
+    throw new Error(payload?.error ?? payload?.reason ?? "Could not load reminder dry run.")
+  }
+
+  return (await response.json()) as ReminderDryRunResult
+}
+
+async function sendReminderTest(idToken: string) {
+  const response = await fetch("/api/notifications/reminders/test", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+    },
+  })
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as ApiError | null
+    throw new Error(payload?.error ?? payload?.reason ?? "Could not send test reminder.")
+  }
+
+  return (await response.json()) as ReminderTestResult
+}
+
 function EmptyWorkspaceState({
   title,
   description,
@@ -223,11 +276,17 @@ export function ReviewWorkspace() {
   const [draft, setDraft] = useState<ProfileDraft | null>(null)
   const [workspaceStatus, setWorkspaceStatus] = useState<WorkspaceStatus>("checking")
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle")
-  const [selectedFixtureId, setSelectedFixtureId] = useState(browseProfileFixtures[0]?.id ?? "fixture-dilani")
   const [reviewerSession, setReviewerSession] = useState<ReviewerSession | null>(null)
   const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>([])
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
+  const [comparisonProfileId, setComparisonProfileId] = useState<string | null>(null)
   const [workspaceError, setWorkspaceError] = useState<string | null>(null)
+  const [reminderState, setReminderState] = useState<"idle" | "loading" | "ready" | "error">("idle")
+  const [reminderError, setReminderError] = useState<string | null>(null)
+  const [reminderDryRun, setReminderDryRun] = useState<ReminderDryRunResult | null>(null)
+  const [reminderTestState, setReminderTestState] = useState<"idle" | "sending" | "sent" | "error">("idle")
+  const [reminderTestError, setReminderTestError] = useState<string | null>(null)
+  const [reminderTestResult, setReminderTestResult] = useState<ReminderTestResult | null>(null)
 
   useEffect(() => {
     if (authLoading) return
@@ -236,6 +295,7 @@ export function ReviewWorkspace() {
       setReviewerSession(null)
       setReviewQueue([])
       setSelectedProfileId(null)
+      setComparisonProfileId(null)
       setDraft(null)
       setWorkspaceError(null)
       setWorkspaceStatus("signed-out")
@@ -259,6 +319,7 @@ export function ReviewWorkspace() {
         if (!session.configured) {
           setReviewQueue([])
           setSelectedProfileId(null)
+          setComparisonProfileId(null)
           setDraft(null)
           setWorkspaceStatus("setup-required")
           return
@@ -267,6 +328,7 @@ export function ReviewWorkspace() {
         if (!session.access) {
           setReviewQueue([])
           setSelectedProfileId(null)
+          setComparisonProfileId(null)
           setDraft(null)
           setWorkspaceStatus("access-denied")
           return
@@ -277,6 +339,7 @@ export function ReviewWorkspace() {
 
         setReviewQueue(reviewData.profiles)
         setSelectedProfileId(reviewData.profiles[0]?.userId ?? null)
+        setComparisonProfileId(reviewData.profiles[1]?.userId ?? null)
         setDraft(reviewData.profiles[0]?.draft ?? null)
         setWorkspaceStatus("ready")
       } catch (error) {
@@ -284,6 +347,7 @@ export function ReviewWorkspace() {
         setReviewerSession(null)
         setReviewQueue([])
         setSelectedProfileId(null)
+        setComparisonProfileId(null)
         setDraft(null)
         setWorkspaceError(
           error instanceof Error
@@ -308,11 +372,29 @@ export function ReviewWorkspace() {
     setDraft(selected?.draft ?? null)
   }, [reviewQueue, selectedProfileId, workspaceStatus])
 
-  const selectedFixture = useMemo(() => getBrowseProfileFixture(selectedFixtureId), [selectedFixtureId])
+  useEffect(() => {
+    if (workspaceStatus !== "ready") return
+
+    const comparisonCandidates = reviewQueue.filter((item) => item.userId !== selectedProfileId)
+    if (!comparisonCandidates.length) {
+      setComparisonProfileId(null)
+      return
+    }
+
+    const hasSelectedComparison = comparisonCandidates.some((item) => item.userId === comparisonProfileId)
+    if (!hasSelectedComparison) {
+      setComparisonProfileId(comparisonCandidates[0]?.userId ?? null)
+    }
+  }, [comparisonProfileId, reviewQueue, selectedProfileId, workspaceStatus])
+
+  const comparisonProfile = useMemo(
+    () => reviewQueue.find((item) => item.userId === comparisonProfileId) ?? null,
+    [comparisonProfileId, reviewQueue],
+  )
   const scorePreview = useMemo(() => {
-    if (!draft || !selectedFixture) return null
-    return calculatePorondamPreview(draft, selectedFixture.draft)
-  }, [draft, selectedFixture])
+    if (!draft || !comparisonProfile) return null
+    return calculatePorondamPreview(draft, comparisonProfile.draft)
+  }, [comparisonProfile, draft])
   const nicStatus = draft ? getVerificationStatus(draft, "nic") : "not-submitted"
   const selfieStatus = draft ? getVerificationStatus(draft, "selfie") : "not-submitted"
   const hasNic = Boolean(
@@ -344,6 +426,38 @@ export function ReviewWorkspace() {
       setSaveState("saved")
     } catch {
       setSaveState("error")
+    }
+  }
+
+  async function runReminderDryRun() {
+    if (!user) return
+
+    try {
+      setReminderState("loading")
+      setReminderError(null)
+      const idToken = await user.getIdToken()
+      const result = await fetchReminderDryRun(idToken)
+      setReminderDryRun(result)
+      setReminderState("ready")
+    } catch (error) {
+      setReminderState("error")
+      setReminderError(error instanceof Error ? error.message : "Could not run reminder dry run.")
+    }
+  }
+
+  async function runReminderTest() {
+    if (!user) return
+
+    try {
+      setReminderTestState("sending")
+      setReminderTestError(null)
+      const idToken = await user.getIdToken()
+      const result = await sendReminderTest(idToken)
+      setReminderTestResult(result)
+      setReminderTestState("sent")
+    } catch (error) {
+      setReminderTestState("error")
+      setReminderTestError(error instanceof Error ? error.message : "Could not send test reminder.")
     }
   }
 
@@ -610,32 +724,34 @@ export function ReviewWorkspace() {
                 <CardHeader className="space-y-3">
                   <CardTitle className="text-xl text-foreground">Scoring oversight</CardTitle>
                   <CardDescription className="leading-6 text-muted-foreground">
-                    Review how the active profile scores against a fixture profile and inspect the factor breakdown.
+                    Review how the active profile scores against another real saved profile and inspect the factor breakdown.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    {browseProfileFixtures.map((fixture) => (
+                    {reviewQueue
+                      .filter((item) => item.userId !== selectedProfileId)
+                      .map((profile) => (
                       <button
-                        key={fixture.id}
+                        key={profile.userId}
                         type="button"
-                        onClick={() => setSelectedFixtureId(fixture.id)}
+                        onClick={() => setComparisonProfileId(profile.userId)}
                         className={cn(
                           "rounded-2xl border px-4 py-4 text-left transition-all",
-                          selectedFixtureId === fixture.id
+                          comparisonProfileId === profile.userId
                             ? "border-primary/40 bg-primary/12"
                             : "border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/[0.05]",
                         )}
                       >
                         <p className="text-sm font-medium text-foreground">
-                          {fixture.draft.basics.firstName} {fixture.draft.basics.lastName}
+                          {profile.displayName}
                         </p>
-                        <p className="mt-2 text-xs leading-5 text-muted-foreground">{fixture.draft.basics.district}</p>
+                        <p className="mt-2 text-xs leading-5 text-muted-foreground">{profile.draft.basics.district}</p>
                       </button>
                     ))}
                   </div>
 
-                  {scorePreview && selectedFixture ? (
+                  {scorePreview && comparisonProfile ? (
                     <>
                       <div className="rounded-3xl border border-primary/20 bg-primary/10 p-5">
                         <div className="flex items-start justify-between gap-4">
@@ -649,7 +765,7 @@ export function ReviewWorkspace() {
                           </div>
                         </div>
                         <p className="mt-4 text-xs uppercase tracking-[0.22em] text-muted-foreground">
-                          Candidate: {selectedFixture.draft.basics.firstName} {selectedFixture.draft.basics.lastName}
+                          Candidate: {comparisonProfile.displayName}
                         </p>
                       </div>
 
@@ -669,9 +785,9 @@ export function ReviewWorkspace() {
                     </>
                   ) : (
                     <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
-                      <p className="text-sm font-semibold text-foreground">Queue profile needed</p>
+                      <p className="text-sm font-semibold text-foreground">Comparison profile needed</p>
                       <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                        Select a profile from the queue to inspect its Porondam preview against the fixture set.
+                        Add at least two saved profiles to the review queue to inspect a real Porondam comparison here.
                       </p>
                     </div>
                   )}
@@ -707,6 +823,113 @@ export function ReviewWorkspace() {
                     ))
                   ) : (
                     <p className="text-sm leading-6 text-muted-foreground">No profiles are currently in the review queue.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="border-white/10 bg-white/[0.035] shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+                <CardHeader className="space-y-3">
+                  <CardTitle className="text-xl text-foreground">Reminder dry run</CardTitle>
+                  <CardDescription className="leading-6 text-muted-foreground">
+                    Test the auspicious reminder dispatcher without sending real push notifications.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Button
+                      onClick={() => void runReminderDryRun()}
+                      disabled={reminderState === "loading"}
+                      className="h-11 rounded-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90"
+                    >
+                      {reminderState === "loading" ? (
+                        <>
+                          <LoaderCircle className="h-4 w-4 animate-spin" />
+                          Running dry run...
+                        </>
+                      ) : (
+                        "Run reminder dry run"
+                      )}
+                    </Button>
+
+                    <Button
+                      onClick={() => void runReminderTest()}
+                      disabled={reminderTestState === "sending"}
+                      variant="outline"
+                      className="h-11 rounded-full border-white/15 bg-white/[0.04] font-semibold text-foreground hover:bg-white/[0.08]"
+                    >
+                      {reminderTestState === "sending" ? (
+                        <>
+                          <LoaderCircle className="h-4 w-4 animate-spin" />
+                          Sending test push...
+                        </>
+                      ) : (
+                        "Send test reminder to me"
+                      )}
+                    </Button>
+                  </div>
+
+                  {reminderError ? (
+                    <div className="rounded-2xl border border-rose-400/25 bg-rose-500/10 px-4 py-4 text-sm text-rose-100">
+                      {reminderError}
+                    </div>
+                  ) : null}
+
+                  {reminderTestError ? (
+                    <div className="rounded-2xl border border-rose-400/25 bg-rose-500/10 px-4 py-4 text-sm text-rose-100">
+                      {reminderTestError}
+                    </div>
+                  ) : null}
+
+                  {reminderTestResult ? (
+                    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                      <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Test send</p>
+                      <p className="mt-2 text-sm leading-6 text-foreground">
+                        Tokens: {reminderTestResult.tokens} • Success: {reminderTestResult.successCount} • Failed:{" "}
+                        {reminderTestResult.failureCount}
+                      </p>
+                      {typeof reminderTestResult.prunedTokens === "number" ? (
+                        <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                          Invalid tokens pruned: {reminderTestResult.prunedTokens}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {reminderDryRun ? (
+                    <div className="space-y-3">
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                        <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Summary</p>
+                        <p className="mt-2 text-sm leading-6 text-foreground">
+                          Scanned {reminderDryRun.scannedProfiles} profiles and found {reminderDryRun.dueCount} due reminder
+                          {reminderDryRun.dueCount === 1 ? "" : "s"}.
+                        </p>
+                      </div>
+
+                      {reminderDryRun.dueReminders?.length ? (
+                        reminderDryRun.dueReminders.map((item) => (
+                          <div key={item.dedupeKey} className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-medium text-foreground">{item.title}</p>
+                              <span className="text-[11px] uppercase tracking-[0.22em] text-primary">{item.category}</span>
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.body}</p>
+                            <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                              Tokens: {item.tokens} • User: {item.userId}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4 text-sm leading-6 text-muted-foreground">
+                          No reminders are due right now. That usually means the current time is outside the send windows
+                          or no saved profiles have matching preferences and push tokens yet.
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4 text-sm leading-6 text-muted-foreground">
+                      Run this once after enabling notification permission on at least one profile. It gives us the exact
+                      payload the scheduler would use later.
+                    </div>
                   )}
                 </CardContent>
               </Card>

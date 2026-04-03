@@ -1,7 +1,9 @@
 import { getMessaging, getToken, onMessage } from "firebase/messaging"
-import { arrayUnion, doc, setDoc } from "firebase/firestore"
+import { arrayRemove, arrayUnion, doc, setDoc } from "firebase/firestore"
 
 import { getFirebaseApp, getFirebaseDb, isFirebaseConfigured } from "./firebase-client"
+
+export const LOCAL_FCM_TOKEN_KEY = "nakath-lk-fcm-token"
 
 export async function requestNotificationPermission(userId: string) {
   if (!userId || !isFirebaseConfigured()) {
@@ -30,6 +32,24 @@ export async function requestNotificationPermission(userId: string) {
       })
 
       if (token) {
+        const previousToken = typeof window !== "undefined" ? window.localStorage.getItem(LOCAL_FCM_TOKEN_KEY) : null
+
+        if (previousToken && previousToken !== token) {
+          const db = getFirebaseDb()
+          const userRef = doc(db, "profiles", userId)
+          await setDoc(
+            userRef,
+            {
+              fcmTokens: arrayRemove(previousToken),
+            },
+            { merge: true },
+          )
+        }
+
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(LOCAL_FCM_TOKEN_KEY, token)
+        }
+
         // Merge the token into the profile document so first-time users do not fail on missing docs.
         const db = getFirebaseDb()
         const userRef = doc(db, "profiles", userId)
@@ -59,4 +79,20 @@ export function onMessageListener() {
       })
     })
   }
+}
+
+export function getStoredFcmToken() {
+  if (typeof window === "undefined") return null
+  return window.localStorage.getItem(LOCAL_FCM_TOKEN_KEY)
+}
+
+export function subscribeToForegroundMessages(onPayload: (payload: unknown) => void) {
+  if (typeof window === "undefined" || !("Notification" in window) || !isFirebaseConfigured()) {
+    return () => {}
+  }
+
+  const messaging = getMessaging(getFirebaseApp())
+  return onMessage(messaging, (payload) => {
+    onPayload(payload)
+  })
 }

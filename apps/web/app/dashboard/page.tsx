@@ -21,6 +21,7 @@ import { useAuth } from "@/components/auth-provider"
 import { AstrologyBackground } from "@/components/astrology-background"
 import { AuspiciousClock } from "@/components/auspicious-clock"
 import { NotificationPrompt } from "@/components/notification-prompt"
+import { ReminderHistory } from "@/components/reminder-history"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -45,7 +46,7 @@ function profileMetaFromDraft(draft: ProfileDraft | null) {
 }
 
 function profileHref(otherUserId: string) {
-  return `/biodata/document?profileId=${otherUserId}`
+  return `/profile?profileId=${otherUserId}`
 }
 
 function SectionCard({
@@ -115,7 +116,7 @@ function MatchCard({
           className="h-10 rounded-full border-white/10 bg-white/[0.04] text-foreground hover:bg-white/[0.08]"
         >
           <Link href={profileHref(item.otherUserId)}>
-            View biodata
+            Open profile
             <ArrowUpRight className="h-4 w-4" />
           </Link>
         </Button>
@@ -310,6 +311,16 @@ export default function DashboardPage() {
                     Edit profile
                   </Link>
                 </Button>
+                <Button
+                  variant="outline"
+                  asChild
+                  className="h-12 rounded-full border-white/15 bg-white/[0.04] px-6 text-base text-foreground hover:bg-white/[0.08]"
+                >
+                  <Link href="/settings">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Privacy and notifications
+                  </Link>
+                </Button>
                 {draft ? (
                   <Button
                     variant="outline"
@@ -338,6 +349,61 @@ export default function DashboardPage() {
             <div className="grid gap-6">
               {draft ? <NotificationPrompt userId={user?.uid ?? ""} /> : null}
               <AuspiciousClock />
+              {draft ? (
+                <Card className="border-white/10 bg-white/[0.04] shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+                  <CardContent className="space-y-4 px-6 py-6">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Privacy and notification settings</p>
+                        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                          Keep alerts useful and decide how your profile should unlock after approval.
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1 text-foreground">
+                        Settings
+                      </Badge>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                        <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Alert mix</p>
+                        <p className="mt-2 text-sm font-medium text-foreground">
+                          {[
+                            draft.alerts.rahuKalaya ? "Rahu" : null,
+                            draft.alerts.poyaDays ? "Poya" : null,
+                            draft.alerts.avuruduNekath ? "Avurudu" : null,
+                            draft.alerts.matchActivity ? "Matches" : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" • ") || "No alerts enabled"}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                        <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Privacy rule</p>
+                        <p className="mt-2 text-sm font-medium text-foreground">
+                          {draft.privacy.photoVisibility === "blurred"
+                            ? "Photo blurred until approval"
+                            : draft.privacy.photoVisibility === "family"
+                              ? "Family-first photo reveal"
+                              : "Photo unlocks after approval"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="h-11 rounded-full border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
+                    >
+                      <Link href="/settings">
+                        Open settings
+                        <ArrowUpRight className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : null}
+              {draft ? <ReminderHistory /> : null}
             </div>
           </div>
 

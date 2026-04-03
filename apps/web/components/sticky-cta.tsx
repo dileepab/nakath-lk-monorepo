@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 
 export function StickyCTA() {
   const [isVisible, setIsVisible] = useState(false)
+  const [footerNearby, setFooterNearby] = useState(false)
 
   useEffect(() => {
     const handleScroll = () => {
@@ -14,13 +15,36 @@ export function StickyCTA() {
     }
 
     window.addEventListener("scroll", handleScroll)
+    handleScroll()
     return () => window.removeEventListener("scroll", handleScroll)
+  }, [])
+
+  useEffect(() => {
+    const footer = document.getElementById("site-footer")
+    if (!footer || typeof IntersectionObserver === "undefined") return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setFooterNearby(entry.isIntersecting)
+      },
+      {
+        root: null,
+        rootMargin: "0px 0px 180px 0px",
+        threshold: 0,
+      },
+    )
+
+    observer.observe(footer)
+
+    return () => {
+      observer.disconnect()
+    }
   }, [])
 
   return (
     <div
       className={`fixed bottom-0 left-0 right-0 z-50 transition-all duration-500 ${
-        isVisible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0"
+        isVisible && !footerNearby ? "translate-y-0 opacity-100" : "translate-y-full opacity-0"
       }`}
     >
       <div className="border-t border-white/10 bg-[#0d0d0f]/90 px-6 py-4 backdrop-blur-2xl">
