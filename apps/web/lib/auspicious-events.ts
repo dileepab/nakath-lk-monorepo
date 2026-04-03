@@ -11,11 +11,16 @@ export type AuspiciousEvent = {
   isAllDay?: boolean
 }
 
-type StaticEventSeed = Omit<AuspiciousEvent, "startsAt"> & {
+export type StaticEventSeed = Omit<AuspiciousEvent, "startsAt"> & {
   startsAt: [year: number, monthIndex: number, day: number, hour?: number, minute?: number]
 }
 
-const poyaEvents2026: StaticEventSeed[] = [
+export type AuspiciousCalendarConfig = {
+  poyaEvents: StaticEventSeed[]
+  avuruduEvents: StaticEventSeed[]
+}
+
+export const poyaEvents2026: StaticEventSeed[] = [
   {
     id: "poya-2026-04-01",
     category: "poya",
@@ -98,7 +103,7 @@ const poyaEvents2026: StaticEventSeed[] = [
   },
 ]
 
-const avuruduEvents2026: StaticEventSeed[] = [
+export const avuruduEvents2026: StaticEventSeed[] = [
   {
     id: "avurudu-2026-parana-awurudu",
     category: "avurudu",
@@ -182,10 +187,38 @@ function materializeStaticEvents(seeds: StaticEventSeed[]) {
   }))
 }
 
-export function getUpcomingAuspiciousEvents(now = new Date(), limit = 5): AuspiciousEvent[] {
+export function getDefaultAuspiciousCalendarConfig(year: number): AuspiciousCalendarConfig {
+  if (year === 2026) {
+    return {
+      poyaEvents: poyaEvents2026,
+      avuruduEvents: avuruduEvents2026,
+    }
+  }
+
+  return {
+    poyaEvents: [],
+    avuruduEvents: [],
+  }
+}
+
+export function getUpcomingAuspiciousEvents(
+  now = new Date(),
+  limit = 5,
+  calendarConfig?: Partial<AuspiciousCalendarConfig>,
+): AuspiciousEvent[] {
   const today = startOfDay(now)
   const nextRahu = getNextRahuStart(now)
-  const staticEvents = [...materializeStaticEvents(avuruduEvents2026), ...materializeStaticEvents(poyaEvents2026)]
+  const currentYear = getSriLankaDateParts(now).year
+  const defaults = getDefaultAuspiciousCalendarConfig(currentYear)
+  const resolvedCalendar: AuspiciousCalendarConfig = {
+    poyaEvents: calendarConfig?.poyaEvents ?? defaults.poyaEvents,
+    avuruduEvents: calendarConfig?.avuruduEvents ?? defaults.avuruduEvents,
+  }
+
+  const staticEvents = [
+    ...materializeStaticEvents(resolvedCalendar.avuruduEvents),
+    ...materializeStaticEvents(resolvedCalendar.poyaEvents),
+  ]
     .filter((event) => event.startsAt >= today || isSameDay(event.startsAt, now))
 
   const merged = [...(nextRahu ? [nextRahu] : []), ...staticEvents]

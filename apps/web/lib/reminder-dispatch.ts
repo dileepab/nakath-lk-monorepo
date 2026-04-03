@@ -2,9 +2,10 @@ import "server-only"
 
 import { FieldValue } from "firebase-admin/firestore"
 
+import { getUpcomingAuspiciousEventsFromStore } from "@/lib/auspicious-calendar-store"
 import { getFailedTokensToPrune, pruneProfileTokens } from "@/lib/fcm-token-hygiene"
 import { buildCalendarNotificationCopy } from "@/lib/notification-copy"
-import { getUpcomingAuspiciousEvents, type AuspiciousEvent } from "@/lib/auspicious-events"
+import { type AuspiciousEvent } from "@/lib/auspicious-events"
 import { getFirebaseAdminDb, getFirebaseAdminMessaging } from "@/lib/firebase-admin"
 import {
   createSriLankaDate,
@@ -59,13 +60,13 @@ function startOfDay(value: Date) {
   return createSriLankaDate(parts.year, parts.monthIndex, parts.day, 0, 0)
 }
 
-function buildDueRemindersForProfile(userId: string, draft: ProfileDraft, tokens: string[], now: Date) {
+async function buildDueRemindersForProfile(userId: string, draft: ProfileDraft, tokens: string[], now: Date) {
   if (!tokens.length) return [] as ReminderCandidate[]
 
   const due: ReminderCandidate[] = []
   const today = startOfDay(now)
   const todayLabel = today.toISOString().slice(0, 10)
-  const events = getUpcomingAuspiciousEvents(now, 8)
+  const events = await getUpcomingAuspiciousEventsFromStore(now, 8)
 
   if (draft.alerts.rahuKalaya) {
     const rahu = events.find((event) => event.category === "rahu")
@@ -139,13 +140,15 @@ export async function dispatchAuspiciousReminders(options?: DispatchOptions) {
   const db = getFirebaseAdminDb()
   const snapshot = await db.collection("profiles").get()
 
-  const allCandidates = snapshot.docs.flatMap((document) => {
+  const candidateGroups = await Promise.all(snapshot.docs.map(async (document) => {
     const record = document.data() as FirestoreReminderRecord
     const draft = mergeProfileDraft(record.draft)
     const tokens = Array.from(new Set((record.fcmTokens ?? []).filter(Boolean)))
 
     return buildDueRemindersForProfile(document.id, draft, tokens, now)
-  })
+  }))
+
+  const allCandidates = candidateGroups.flat()
 
   const dueReminders: ReminderCandidate[] = []
   for (const candidate of allCandidates) {

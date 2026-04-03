@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { authenticateRequest, isAuthenticatedResult } from "@/lib/api-auth"
+import { getUpcomingAuspiciousEventsFromStore } from "@/lib/auspicious-calendar-store"
 import {
   createFamilyShareLink,
   getCurrentFamilyShareLink,
@@ -20,6 +21,10 @@ type ReminderHistoryRecord = {
 
 function isShareLinkRequest(request: Request) {
   return new URL(request.url).searchParams.get("resource") === "share-link"
+}
+
+function isAuspiciousEventsRequest(request: Request) {
+  return new URL(request.url).searchParams.get("resource") === "auspicious-events"
 }
 
 function firstHeaderValue(value: string | null) {
@@ -65,6 +70,24 @@ export async function GET(request: Request) {
   if (isShareLinkRequest(request)) {
     const link = await getCurrentFamilyShareLink(authResult.decoded.uid, originFromRequest(request))
     return NextResponse.json({ link })
+  }
+
+  if (isAuspiciousEventsRequest(request)) {
+    const url = new URL(request.url)
+    const requestedLimit = Number(url.searchParams.get("limit") ?? "5")
+    const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(12, requestedLimit)) : 5
+    const events = await getUpcomingAuspiciousEventsFromStore(new Date(), limit)
+
+    return NextResponse.json({
+      events: events.map((event) => ({
+        id: event.id,
+        category: event.category,
+        title: event.title,
+        description: event.description,
+        startsAt: event.startsAt.toISOString(),
+        isAllDay: Boolean(event.isAllDay),
+      })),
+    })
   }
 
   const snapshot = await getFirebaseAdminDb()

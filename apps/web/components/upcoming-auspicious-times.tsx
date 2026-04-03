@@ -3,17 +3,24 @@
 import { useEffect, useMemo, useState } from "react"
 import { BellRing, CalendarDays, Languages, LoaderCircle, MoonStar, Sparkles } from "lucide-react"
 
+import { useAuth } from "@/components/auth-provider"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { getAuspiciousEventTone, getUpcomingAuspiciousEvents, formatAuspiciousEventDate } from "@/lib/auspicious-events"
+import {
+  formatAuspiciousEventDate,
+  getAuspiciousEventTone,
+  getUpcomingAuspiciousEvents,
+  type AuspiciousEvent,
+} from "@/lib/auspicious-events"
 import { saveProfileDraftToBackend } from "@/lib/profile-store"
 import { cn } from "@/lib/utils"
 import { initialProfileDraft, type ProfileDraft, type ReminderLanguage } from "@acme/core"
 
 type AlertKey = Exclude<keyof ProfileDraft["alerts"], "language">
 type SaveKey = AlertKey | "language"
+type EventsState = "idle" | "loading" | "ready" | "error"
 
 const alertOptions: Array<{
   key: AlertKey
@@ -51,12 +58,16 @@ export function UpcomingAuspiciousTimes({
   draft: ProfileDraft | null
   onDraftChange: (draft: ProfileDraft) => void
 }) {
+  const { user } = useAuth()
   const [savingKey, setSavingKey] = useState<SaveKey | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [pushStatus, setPushStatus] = useState("Checking browser")
+  const [eventsState, setEventsState] = useState<EventsState>("loading")
+  const [eventsError, setEventsError] = useState<string | null>(null)
+  const [events, setEvents] = useState<AuspiciousEvent[]>(() => getUpcomingAuspiciousEvents(new Date(), 5))
 
   const effectiveDraft = draft ?? initialProfileDraft
-  const events = useMemo(() => getUpcomingAuspiciousEvents(new Date(), 5), [])
+  const hasFallbackEvents = useMemo(() => eventsState !== "ready" && events.length > 0, [events, eventsState])
 
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) {
@@ -72,6 +83,64 @@ export function UpcomingAuspiciousTimes({
           : "Enable from the card above",
     )
   }, [])
+
+  useEffect(() => {
+    if (!user) {
+      setEventsState("idle")
+      return
+    }
+
+    const currentUser = user
+    let cancelled = false
+
+    async function loadEvents() {
+      try {
+        setEventsState("loading")
+        setEventsError(null)
+        const idToken = await currentUser.getIdToken()
+        const response = await fetch("/api/notifications/history?resource=auspicious-events&limit=5", {
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error("Could not load the managed auspicious calendar.")
+        }
+
+        const payload = (await response.json()) as {
+          events: Array<{
+            id: string
+            category: AuspiciousEvent["category"]
+            title: string
+            description: string
+            startsAt: string
+            isAllDay?: boolean
+          }>
+        }
+
+        if (cancelled) return
+
+        setEvents(
+          payload.events.map((event) => ({
+            ...event,
+            startsAt: new Date(event.startsAt),
+          })),
+        )
+        setEventsState("ready")
+      } catch (error) {
+        if (cancelled) return
+        setEventsState("error")
+        setEventsError(error instanceof Error ? error.message : "Could not load the managed auspicious calendar.")
+      }
+    }
+
+    void loadEvents()
+
+    return () => {
+      cancelled = true
+    }
+  }, [user])
 
   async function handleLanguageChange(language: ReminderLanguage) {
     if (!draft || !userId) {
@@ -154,6 +223,22 @@ export function UpcomingAuspiciousTimes({
 
       <CardContent className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="space-y-3">
+          {eventsState === "loading" ? (
+            <div className="rounded-3xl border border-white/10 bg-black/20 p-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
+                Loading managed auspicious events...
+              </div>
+            </div>
+          ) : null}
+
+          {eventsError ? (
+            <div className="rounded-3xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm leading-6 text-amber-50">
+              {eventsError}
+              {hasFallbackEvents ? " Showing the bundled fallback schedule for now." : ""}
+            </div>
+          ) : null}
+
           {events.map((event) => {
             const tone = getAuspiciousEventTone(event.category)
 

@@ -23,6 +23,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /auspiciousCalendarYears/{yearId} {
+      allow read, write: if false;
+    }
+
     // Matches Collection
     match /matches/{matchId} {
       // Users can only read matches where they are the sender or receiver

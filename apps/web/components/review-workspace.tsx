@@ -15,6 +15,7 @@ import {
 
 import { useAuth } from "@/components/auth-provider"
 import { AstrologyBackground } from "@/components/astrology-background"
+import { AuspiciousCalendarManager } from "@/components/auspicious-calendar-manager"
 import { MediaPreviewDialog } from "@/components/media-preview-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -826,6 +827,8 @@ export function ReviewWorkspace() {
                   )}
                 </CardContent>
               </Card>
+
+              <AuspiciousCalendarManager />
 
               <Card className="border-white/10 bg-white/[0.035] shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl">
                 <CardHeader className="space-y-3">
