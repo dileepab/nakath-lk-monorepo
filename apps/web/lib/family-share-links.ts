@@ -78,8 +78,9 @@ function isLinkActive(record: FirestoreShareLinkRecord, now = new Date()) {
 }
 
 function summarizeLink(record: FirestoreShareLinkRecord, origin: string): FamilyShareLinkSummary {
+  const shareToken = encodeURIComponent(record.token)
   return {
-    url: `${origin}/share/${record.token}`,
+    url: `${origin}/biodata/document?shareToken=${shareToken}`,
     shareMode: record.shareMode,
     createdAt: formatTimestamp(record.createdAt),
     expiresAt: formatTimestamp(record.expiresAt),

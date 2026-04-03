@@ -20,6 +20,8 @@ type FamilyShareLinkSummary = {
   viewCount: number
 }
 
+const FAMILY_SHARE_LINK_ENDPOINT = "/api/notifications/history?resource=share-link"
+
 function formatDateTime(value: string | null) {
   if (!value) return "Not available yet"
 
@@ -78,7 +80,7 @@ export function FamilyShareLinkManager({
     async function loadLink() {
       try {
         const idToken = await currentUser.getIdToken()
-        const response = await fetch("/api/share-links/current", {
+        const response = await fetch(FAMILY_SHARE_LINK_ENDPOINT, {
           headers: {
             Authorization: `Bearer ${idToken}`,
           },
@@ -115,7 +117,7 @@ export function FamilyShareLinkManager({
     setAction("create")
     try {
       const idToken = await user.getIdToken()
-      const response = await fetch("/api/share-links/current", {
+      const response = await fetch(FAMILY_SHARE_LINK_ENDPOINT, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${idToken}`,
@@ -148,7 +150,7 @@ export function FamilyShareLinkManager({
     setAction("revoke")
     try {
       const idToken = await user.getIdToken()
-      const response = await fetch("/api/share-links/current", {
+      const response = await fetch(FAMILY_SHARE_LINK_ENDPOINT, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${idToken}`,
