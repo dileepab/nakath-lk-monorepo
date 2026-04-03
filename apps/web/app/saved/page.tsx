@@ -16,6 +16,7 @@ import {
 
 import { useAuth } from "@/components/auth-provider"
 import { AstrologyBackground } from "@/components/astrology-background"
+import { BiodataSharePanel } from "@/components/biodata-share-panel"
 import { ProfilePhotoCard } from "@/components/profile-photo-card"
 import { ShortlistToggleButton } from "@/components/shortlist-toggle-button"
 import { Badge } from "@/components/ui/badge"
@@ -377,6 +378,8 @@ export default function SavedProfilesPage() {
                               onClick={() => void handleRemove(item.entry.profileId)}
                             />
                           </div>
+
+                          {item.draft ? <BiodataSharePanel draft={item.draft} compact /> : null}
                         </div>
                       </div>
                     </CardContent>

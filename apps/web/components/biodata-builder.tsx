@@ -20,6 +20,7 @@ import {
 
 import { useAuth } from "@/components/auth-provider"
 import { AstrologyBackground } from "@/components/astrology-background"
+import { BiodataSharePanel } from "@/components/biodata-share-panel"
 import { ImageEditDialog } from "@/components/image-edit-dialog"
 import { MediaPreviewDialog } from "@/components/media-preview-dialog"
 import { ProfilePhotoCard } from "@/components/profile-photo-card"
@@ -775,8 +776,17 @@ export function BiodataBuilder() {
                   </Badge>
                 </div>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground">{backendMessage}</p>
+                </div>
               </div>
-            </div>
+
+              <div className="mt-6 max-w-4xl">
+                <BiodataSharePanel
+                  draft={previewDraft}
+                  documentHref={documentHref}
+                  title="Share with family when the biodata is ready"
+                  description="Keep the sharing tone aligned with your selected biodata mode. Use the printable view, copy a family-friendly note, or move it into WhatsApp without exposing contact details too early."
+                />
+              </div>
 
           </div>
 

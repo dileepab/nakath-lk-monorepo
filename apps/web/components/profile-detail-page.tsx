@@ -19,6 +19,7 @@ import {
 import { useAuth } from "@/components/auth-provider"
 import { AstrologyBackground } from "@/components/astrology-background"
 import { ProfilePhotoCard } from "@/components/profile-photo-card"
+import { BiodataSharePanel } from "@/components/biodata-share-panel"
 import { ShortlistToggleButton } from "@/components/shortlist-toggle-button"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -700,6 +701,18 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                       </>
                     )}
                   </div>
+
+                  <BiodataSharePanel
+                    draft={draft}
+                    compact
+                    documentHref={profile.source === "current-user" ? "/biodata/document" : undefined}
+                    title={
+                      profile.source === "current-user"
+                        ? "Share your biodata"
+                        : "Share this profile with family"
+                    }
+                    description=""
+                  />
                 </CardContent>
               </Card>
 

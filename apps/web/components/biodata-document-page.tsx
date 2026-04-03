@@ -3,10 +3,11 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { ArrowLeft, Database, Download, PencilLine } from "lucide-react"
+import { ArrowLeft, Database, PencilLine } from "lucide-react"
 
 import { useAuth } from "@/components/auth-provider"
 import { BiodataDocument } from "@/components/biodata-document"
+import { BiodataSharePanel } from "@/components/biodata-share-panel"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { PROFILE_DRAFT_STORAGE_KEY, initialProfileDraft, mergeProfileDraft, type ProfileDraft } from "@acme/core"
@@ -93,14 +94,19 @@ export function BiodataDocumentPage() {
             <Database className="h-3.5 w-3.5" />
             {sourceLabel}
           </Badge>
-          <Button
-            onClick={() => window.print()}
-            className="rounded-full bg-[#7b5510] px-6 font-semibold text-[#fff7e5] hover:bg-[#62420c]"
-          >
-            <Download className="h-4 w-4" />
-            Print / Save as PDF
-          </Button>
         </div>
+      </div>
+
+      <div className="mx-auto mb-6 max-w-[880px] print-hidden">
+        <BiodataSharePanel
+          draft={draft}
+          title="Family sharing options"
+          description="Use the print-friendly biodata, a WhatsApp-ready note, or a copied family review summary without revealing contact details too early."
+          documentHref="/biodata/document"
+          canPrint
+          onPrint={() => window.print()}
+          appearance="paper"
+        />
       </div>
 
       <BiodataDocument draft={draft} />
