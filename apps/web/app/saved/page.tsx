@@ -18,6 +18,7 @@ import { useAuth } from "@/components/auth-provider"
 import { AstrologyBackground } from "@/components/astrology-background"
 import { BiodataSharePanel } from "@/components/biodata-share-panel"
 import { ProfilePhotoCard } from "@/components/profile-photo-card"
+import { ShortlistNotesPanel } from "@/components/shortlist-notes-panel"
 import { ShortlistToggleButton } from "@/components/shortlist-toggle-button"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -26,7 +27,13 @@ import { getFirebaseAuth } from "@/lib/firebase-client"
 import { getReceivedMatches, getSentMatches, sendMatchRequest } from "@/lib/match-api"
 import { getProfileDisplayName, getProfileSummaryLine } from "@/lib/profile-presenter"
 import { isFirebaseConfigured, loadPublicProfileDraftFromBackend } from "@/lib/profile-store"
-import { listShortlistEntries, removeProfileFromShortlist, type ShortlistEntry } from "@/lib/shortlist-store"
+import {
+  listShortlistEntries,
+  removeProfileFromShortlist,
+  updateShortlistEntry,
+  type ShortlistEntry,
+  type ShortlistNoteTag,
+} from "@/lib/shortlist-store"
 import { type MatchRequest, type ProfileDraft, isFullyVerified } from "@acme/core"
 
 type RelationshipState = {
@@ -164,6 +171,27 @@ export default function SavedProfilesPage() {
     } finally {
       setRequestingProfileId(null)
     }
+  }
+
+  async function handleSaveNotes(profileId: string, next: { note: string; tags: ShortlistNoteTag[] }) {
+    if (!user) throw new Error("Please sign in again to save your notes.")
+
+    await updateShortlistEntry(user.uid, profileId, next)
+    setItems((current) =>
+      current.map((item) =>
+        item.entry.profileId === profileId
+          ? {
+              ...item,
+              entry: {
+                ...item.entry,
+                note: next.note,
+                tags: next.tags,
+                updatedAt: Date.now(),
+              },
+            }
+          : item,
+      ),
+    )
   }
 
   if (authLoading || loadingState) {
@@ -308,6 +336,15 @@ export default function SavedProfilesPage() {
                             >
                               {unlocked ? "Photo unlocked" : item.draft?.privacy.photoVisibility === "family" ? "Family review" : "Blurred first"}
                             </Badge>
+                            {item.entry.tags.map((tag) => (
+                              <Badge
+                                key={tag}
+                                variant="outline"
+                                className="rounded-full border-primary/25 bg-primary/10 px-3 py-1 text-primary"
+                              >
+                                {tag}
+                              </Badge>
+                            ))}
                           </div>
 
                           <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -378,6 +415,12 @@ export default function SavedProfilesPage() {
                               onClick={() => void handleRemove(item.entry.profileId)}
                             />
                           </div>
+
+                          <ShortlistNotesPanel
+                            entry={item.entry}
+                            onSave={(next) => handleSaveNotes(item.entry.profileId, next)}
+                            className="mt-6"
+                          />
 
                           {item.draft ? <BiodataSharePanel draft={item.draft} compact /> : null}
                         </div>

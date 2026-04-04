@@ -6,6 +6,8 @@ import {
   ArrowLeft,
   ArrowUpRight,
   BadgeCheck,
+  BellRing,
+  CalendarDays,
   Database,
   FileSearch,
   LoaderCircle,
@@ -20,6 +22,7 @@ import { MediaPreviewDialog } from "@/components/media-preview-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { horoscopeRuleConfig } from "@acme/core"
 import { calculatePorondamPreview } from "@acme/core"
 import { getVerificationStatus, hasUploadedAsset, type ProfileDraft, type VerificationState } from "@acme/core"
@@ -617,183 +620,361 @@ export function ReviewWorkspace() {
 
           <div className="mt-10 grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
             <div className="space-y-6">
-              <Card className="border-white/10 bg-white/[0.035] shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl">
-                <CardHeader className="space-y-3">
-                  <CardTitle className="text-xl text-foreground">Verification review</CardTitle>
-                  <CardDescription className="leading-6 text-muted-foreground">
-                    Uploaded files create the submission state. This reviewer panel is where we can promote them to verified.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  {draft ? (
-                    <>
-                      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                        {[
-                          {
-                            title: "Profile photo",
-                            url: resolvedProfilePhotoUrl,
-                            status: hasUploadedAsset(draft.media.profilePhotoPath, draft.media.profilePhotoUrl)
-                              ? "Uploaded"
-                              : "Missing",
-                            path: draft.media.profilePhotoPath,
-                            kind: "image" as const,
-                          },
-                          {
-                            title: "NIC front",
-                            url: resolvedNicFrontUrl,
-                            status: hasUploadedAsset(draft.media.nicFrontPath, draft.media.nicFrontUrl)
-                              ? "Uploaded"
-                              : "Missing",
-                            path: draft.media.nicFrontPath,
-                            kind: "image" as const,
-                          },
-                          {
-                            title: "NIC back",
-                            url: resolvedNicBackUrl,
-                            status: hasUploadedAsset(draft.media.nicBackPath, draft.media.nicBackUrl)
-                              ? "Uploaded"
-                              : "Missing",
-                            path: draft.media.nicBackPath,
-                            kind: "image" as const,
-                          },
-                          {
-                            title: "Verification selfie",
-                            url: resolvedSelfieUrl,
-                            status: hasSelfie ? "Uploaded" : "Missing",
-                            path: draft.media.selfiePath,
-                            kind: "image" as const,
-                          },
-                        ].map((asset) => (
-                          <div key={asset.title} className="rounded-3xl border border-white/10 bg-black/20 p-5">
-                            <p className="text-sm font-semibold text-foreground">{asset.title}</p>
-                            <p className="mt-2 text-xs uppercase tracking-[0.22em] text-muted-foreground">{asset.status}</p>
-                            {asset.path || asset.url ? (
-                              <MediaPreviewDialog
-                                title={asset.title}
-                                path={asset.path}
-                                fallbackUrl={asset.url}
-                                kind={asset.kind}
-                              />
-                            ) : (
-                              <p className="mt-4 text-sm leading-6 text-muted-foreground">No upload available yet.</p>
-                            )}
+              <Tabs defaultValue="verification" className="gap-4">
+                <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-3xl border border-white/10 bg-white/[0.04] p-2">
+                  <TabsTrigger
+                    value="verification"
+                    className="min-h-11 rounded-2xl border-white/10 px-4 py-2.5 text-white/75 data-[state=active]:border-primary/30 data-[state=active]:bg-primary/12 data-[state=active]:text-primary"
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                    Verification
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="calendar"
+                    className="min-h-11 rounded-2xl border-white/10 px-4 py-2.5 text-white/75 data-[state=active]:border-primary/30 data-[state=active]:bg-primary/12 data-[state=active]:text-primary"
+                  >
+                    <CalendarDays className="h-4 w-4" />
+                    Calendar
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="reminders"
+                    className="min-h-11 rounded-2xl border-white/10 px-4 py-2.5 text-white/75 data-[state=active]:border-primary/30 data-[state=active]:bg-primary/12 data-[state=active]:text-primary"
+                  >
+                    <BellRing className="h-4 w-4" />
+                    Reminders
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="scoring"
+                    className="min-h-11 rounded-2xl border-white/10 px-4 py-2.5 text-white/75 data-[state=active]:border-primary/30 data-[state=active]:bg-primary/12 data-[state=active]:text-primary"
+                  >
+                    <BadgeCheck className="h-4 w-4" />
+                    Scoring
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="verification" className="space-y-6">
+                  <Card className="border-white/10 bg-white/[0.035] shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+                    <CardHeader className="space-y-3">
+                      <CardTitle className="text-xl text-foreground">Verification review</CardTitle>
+                      <CardDescription className="leading-6 text-muted-foreground">
+                        Uploaded files create the submission state. This reviewer panel is where we can promote them to verified.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-5">
+                      {draft ? (
+                        <>
+                          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                            {[
+                              {
+                                title: "Profile photo",
+                                url: resolvedProfilePhotoUrl,
+                                status: hasUploadedAsset(draft.media.profilePhotoPath, draft.media.profilePhotoUrl)
+                                  ? "Uploaded"
+                                  : "Missing",
+                                path: draft.media.profilePhotoPath,
+                                kind: "image" as const,
+                              },
+                              {
+                                title: "NIC front",
+                                url: resolvedNicFrontUrl,
+                                status: hasUploadedAsset(draft.media.nicFrontPath, draft.media.nicFrontUrl)
+                                  ? "Uploaded"
+                                  : "Missing",
+                                path: draft.media.nicFrontPath,
+                                kind: "image" as const,
+                              },
+                              {
+                                title: "NIC back",
+                                url: resolvedNicBackUrl,
+                                status: hasUploadedAsset(draft.media.nicBackPath, draft.media.nicBackUrl)
+                                  ? "Uploaded"
+                                  : "Missing",
+                                path: draft.media.nicBackPath,
+                                kind: "image" as const,
+                              },
+                              {
+                                title: "Verification selfie",
+                                url: resolvedSelfieUrl,
+                                status: hasSelfie ? "Uploaded" : "Missing",
+                                path: draft.media.selfiePath,
+                                kind: "image" as const,
+                              },
+                            ].map((asset) => (
+                              <div key={asset.title} className="rounded-3xl border border-white/10 bg-black/20 p-5">
+                                <p className="text-sm font-semibold text-foreground">{asset.title}</p>
+                                <p className="mt-2 text-xs uppercase tracking-[0.22em] text-muted-foreground">{asset.status}</p>
+                                {asset.path || asset.url ? (
+                                  <MediaPreviewDialog
+                                    title={asset.title}
+                                    path={asset.path}
+                                    fallbackUrl={asset.url}
+                                    kind={asset.kind}
+                                  />
+                                ) : (
+                                  <p className="mt-4 text-sm leading-6 text-muted-foreground">No upload available yet.</p>
+                                )}
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
 
-                      <div className="grid gap-5 lg:grid-cols-2">
-                        <ReviewDecision
-                          label="NIC decision"
-                          value={nicStatus}
-                          onChange={(value) => void updateVerification("nicStatus", value)}
-                          allowVerified={hasNic}
-                          disabled={!selectedProfileId}
-                        />
-                        <ReviewDecision
-                          label="Selfie decision"
-                          value={selfieStatus}
-                          onChange={(value) => void updateVerification("selfieStatus", value)}
-                          allowVerified={hasSelfie}
-                          disabled={!selectedProfileId}
-                        />
-                      </div>
-
-                      <div className="rounded-3xl border border-primary/20 bg-primary/10 p-5">
-                        <div className="flex items-center gap-2">
-                          <LockKeyhole className="h-4 w-4 text-primary" />
-                          <p className="text-sm font-semibold text-foreground">Reviewer note</p>
-                        </div>
-                        <p className="mt-3 text-sm leading-7 text-foreground/90">
-                          This session is using server-verified reviewer access. Decisions are saved through protected
-                          review APIs rather than direct client writes.
-                        </p>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
-                      <p className="text-sm font-semibold text-foreground">No profile selected</p>
-                      <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                        The queue is empty right now, so there is nothing to review yet. As soon as users save biodata
-                        and upload verification files, they can appear here.
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="border-white/10 bg-white/[0.035] shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl">
-                <CardHeader className="space-y-3">
-                  <CardTitle className="text-xl text-foreground">Scoring oversight</CardTitle>
-                  <CardDescription className="leading-6 text-muted-foreground">
-                    Review how the active profile scores against another real saved profile and inspect the factor breakdown.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    {reviewQueue
-                      .filter((item) => item.userId !== selectedProfileId)
-                      .map((profile) => (
-                      <button
-                        key={profile.userId}
-                        type="button"
-                        onClick={() => setComparisonProfileId(profile.userId)}
-                        className={cn(
-                          "rounded-2xl border px-4 py-4 text-left transition-all",
-                          comparisonProfileId === profile.userId
-                            ? "border-primary/40 bg-primary/12"
-                            : "border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/[0.05]",
-                        )}
-                      >
-                        <p className="text-sm font-medium text-foreground">
-                          {profile.displayName}
-                        </p>
-                        <p className="mt-2 text-xs leading-5 text-muted-foreground">{profile.draft.basics.district}</p>
-                      </button>
-                    ))}
-                  </div>
-
-                  {scorePreview && comparisonProfile ? (
-                    <>
-                      <div className="rounded-3xl border border-primary/20 bg-primary/10 p-5">
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="text-sm font-semibold text-foreground">{scorePreview.label}</p>
-                            <p className="mt-3 text-sm leading-7 text-foreground/90">{scorePreview.summary}</p>
+                          <div className="grid gap-5 lg:grid-cols-2">
+                            <ReviewDecision
+                              label="NIC decision"
+                              value={nicStatus}
+                              onChange={(value) => void updateVerification("nicStatus", value)}
+                              allowVerified={hasNic}
+                              disabled={!selectedProfileId}
+                            />
+                            <ReviewDecision
+                              label="Selfie decision"
+                              value={selfieStatus}
+                              onChange={(value) => void updateVerification("selfieStatus", value)}
+                              allowVerified={hasSelfie}
+                              disabled={!selectedProfileId}
+                            />
                           </div>
-                          <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-right">
-                            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Score</p>
-                            <p className="mt-2 text-2xl font-semibold text-primary">{scorePreview.total}/20</p>
-                          </div>
-                        </div>
-                        <p className="mt-4 text-xs uppercase tracking-[0.22em] text-muted-foreground">
-                          Candidate: {comparisonProfile.displayName}
-                        </p>
-                      </div>
 
-                      <div className="grid gap-3">
-                        {scorePreview.factors.map((factor) => (
-                          <div key={factor.key} className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
-                            <div className="flex items-center justify-between gap-3">
-                              <p className="text-sm font-medium text-foreground">{factor.label}</p>
-                              <span className="text-xs uppercase tracking-[0.2em] text-primary">
-                                {factor.score}/{factor.max}
-                              </span>
+                          <div className="rounded-3xl border border-primary/20 bg-primary/10 p-5">
+                            <div className="flex items-center gap-2">
+                              <LockKeyhole className="h-4 w-4 text-primary" />
+                              <p className="text-sm font-semibold text-foreground">Reviewer note</p>
                             </div>
-                            <p className="mt-2 text-sm leading-6 text-muted-foreground">{factor.note}</p>
+                            <p className="mt-3 text-sm leading-7 text-foreground/90">
+                              This session is using server-verified reviewer access. Decisions are saved through protected
+                              review APIs rather than direct client writes.
+                            </p>
                           </div>
-                        ))}
+                        </>
+                      ) : (
+                        <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
+                          <p className="text-sm font-semibold text-foreground">No profile selected</p>
+                          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                            The queue is empty right now, so there is nothing to review yet. As soon as users save biodata
+                            and upload verification files, they can appear here.
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="calendar" className="space-y-6">
+                  <AuspiciousCalendarManager />
+                </TabsContent>
+
+                <TabsContent value="reminders" className="space-y-6">
+                  <Card className="border-white/10 bg-white/[0.035] shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+                    <CardHeader className="space-y-3">
+                      <CardTitle className="text-xl text-foreground">Reminder dry run</CardTitle>
+                      <CardDescription className="leading-6 text-muted-foreground">
+                        Test the auspicious reminder dispatcher without sending real push notifications.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Button
+                          onClick={() => void runReminderDryRun()}
+                          disabled={reminderState === "loading"}
+                          className="h-11 rounded-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90"
+                        >
+                          {reminderState === "loading" ? (
+                            <>
+                              <LoaderCircle className="h-4 w-4 animate-spin" />
+                              Running dry run...
+                            </>
+                          ) : (
+                            "Run reminder dry run"
+                          )}
+                        </Button>
+
+                        <Button
+                          onClick={() => void runReminderTest()}
+                          disabled={reminderTestState === "sending"}
+                          variant="outline"
+                          className="h-11 rounded-full border-white/15 bg-white/[0.04] font-semibold text-foreground hover:bg-white/[0.08]"
+                        >
+                          {reminderTestState === "sending" ? (
+                            <>
+                              <LoaderCircle className="h-4 w-4 animate-spin" />
+                              Sending test push...
+                            </>
+                          ) : (
+                            "Send test reminder to me"
+                          )}
+                        </Button>
                       </div>
-                    </>
-                  ) : (
-                    <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
-                      <p className="text-sm font-semibold text-foreground">Comparison profile needed</p>
-                      <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                        Add at least two saved profiles to the review queue to inspect a real Porondam comparison here.
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+
+                      {reminderError ? (
+                        <div className="rounded-2xl border border-rose-400/25 bg-rose-500/10 px-4 py-4 text-sm text-rose-100">
+                          {reminderError}
+                        </div>
+                      ) : null}
+
+                      {reminderTestError ? (
+                        <div className="rounded-2xl border border-rose-400/25 bg-rose-500/10 px-4 py-4 text-sm text-rose-100">
+                          {reminderTestError}
+                        </div>
+                      ) : null}
+
+                      {reminderTestResult ? (
+                        <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                          <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Test send</p>
+                          <p className="mt-2 text-sm leading-6 text-foreground">
+                            Tokens: {reminderTestResult.tokens} • Success: {reminderTestResult.successCount} • Failed:{" "}
+                            {reminderTestResult.failureCount}
+                          </p>
+                          {typeof reminderTestResult.prunedTokens === "number" ? (
+                            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                              Invalid tokens pruned: {reminderTestResult.prunedTokens}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      {reminderDryRun ? (
+                        <div className="space-y-3">
+                          <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                            <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Summary</p>
+                            <p className="mt-2 text-sm leading-6 text-foreground">
+                              Scanned {reminderDryRun.scannedProfiles} profiles and found {reminderDryRun.dueCount} due reminder
+                              {reminderDryRun.dueCount === 1 ? "" : "s"}.
+                            </p>
+                          </div>
+
+                          {reminderDryRun.dueReminders?.length ? (
+                            reminderDryRun.dueReminders.map((item) => (
+                              <div key={item.dedupeKey} className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                                <div className="flex items-center justify-between gap-3">
+                                  <p className="text-sm font-medium text-foreground">{item.title}</p>
+                                  <span className="text-[11px] uppercase tracking-[0.22em] text-primary">{item.category}</span>
+                                </div>
+                                <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.body}</p>
+                                <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                                  Tokens: {item.tokens} • User: {item.userId}
+                                </p>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4 text-sm leading-6 text-muted-foreground">
+                              No reminders are due right now. That usually means the current time is outside the send windows
+                              or no saved profiles have matching preferences and push tokens yet.
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4 text-sm leading-6 text-muted-foreground">
+                          Run this once after enabling notification permission on at least one profile. It gives us the exact
+                          payload the scheduler would use later.
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="scoring" className="space-y-6">
+                  <Card className="border-white/10 bg-white/[0.035] shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+                    <CardHeader className="space-y-3">
+                      <CardTitle className="text-xl text-foreground">Scoring oversight</CardTitle>
+                      <CardDescription className="leading-6 text-muted-foreground">
+                        Review how the active profile scores against another real saved profile and inspect the factor breakdown.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-5">
+                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                        {reviewQueue
+                          .filter((item) => item.userId !== selectedProfileId)
+                          .map((profile) => (
+                            <button
+                              key={profile.userId}
+                              type="button"
+                              onClick={() => setComparisonProfileId(profile.userId)}
+                              className={cn(
+                                "rounded-2xl border px-4 py-4 text-left transition-all",
+                                comparisonProfileId === profile.userId
+                                  ? "border-primary/40 bg-primary/12"
+                                  : "border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/[0.05]",
+                              )}
+                            >
+                              <p className="text-sm font-medium text-foreground">{profile.displayName}</p>
+                              <p className="mt-2 text-xs leading-5 text-muted-foreground">{profile.draft.basics.district}</p>
+                            </button>
+                          ))}
+                      </div>
+
+                      {scorePreview && comparisonProfile ? (
+                        <>
+                          <div className="rounded-3xl border border-primary/20 bg-primary/10 p-5">
+                            <div className="flex items-start justify-between gap-4">
+                              <div>
+                                <p className="text-sm font-semibold text-foreground">{scorePreview.label}</p>
+                                <p className="mt-3 text-sm leading-7 text-foreground/90">{scorePreview.summary}</p>
+                              </div>
+                              <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-right">
+                                <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Score</p>
+                                <p className="mt-2 text-2xl font-semibold text-primary">{scorePreview.total}/20</p>
+                              </div>
+                            </div>
+                            <p className="mt-4 text-xs uppercase tracking-[0.22em] text-muted-foreground">
+                              Candidate: {comparisonProfile.displayName}
+                            </p>
+                          </div>
+
+                          <div className="grid gap-3">
+                            {scorePreview.factors.map((factor) => (
+                              <div key={factor.key} className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                                <div className="flex items-center justify-between gap-3">
+                                  <p className="text-sm font-medium text-foreground">{factor.label}</p>
+                                  <span className="text-xs uppercase tracking-[0.2em] text-primary">
+                                    {factor.score}/{factor.max}
+                                  </span>
+                                </div>
+                                <p className="mt-2 text-sm leading-6 text-muted-foreground">{factor.note}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
+                          <p className="text-sm font-semibold text-foreground">Comparison profile needed</p>
+                          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                            Add at least two saved profiles to the review queue to inspect a real Porondam comparison here.
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-white/10 bg-white/[0.035] shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+                    <CardHeader className="space-y-3">
+                      <CardTitle className="text-xl text-foreground">Horoscope rule config</CardTitle>
+                      <CardDescription className="leading-6 text-muted-foreground">
+                        This shows what the dedicated rule engine is using right now.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                        <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Completeness thresholds</p>
+                        <p className="mt-2 text-sm leading-6 text-foreground">
+                          High: {horoscopeRuleConfig.completeness.highThreshold} fields, Medium:{" "}
+                          {horoscopeRuleConfig.completeness.mediumThreshold} fields
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                        <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Nakath distance rules</p>
+                        <p className="mt-2 text-sm leading-6 text-foreground">
+                          Configured distances: {Object.keys(horoscopeRuleConfig.nakath.distanceScores).join(", ")}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                        <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Lagna compatibility</p>
+                        <p className="mt-2 text-sm leading-6 text-foreground">
+                          Compatible element pairs: {horoscopeRuleConfig.lagna.compatiblePairs.join(", ")}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
             </div>
 
             <div className="space-y-6">
@@ -825,145 +1006,6 @@ export function ReviewWorkspace() {
                   ) : (
                     <p className="text-sm leading-6 text-muted-foreground">No profiles are currently in the review queue.</p>
                   )}
-                </CardContent>
-              </Card>
-
-              <AuspiciousCalendarManager />
-
-              <Card className="border-white/10 bg-white/[0.035] shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl">
-                <CardHeader className="space-y-3">
-                  <CardTitle className="text-xl text-foreground">Reminder dry run</CardTitle>
-                  <CardDescription className="leading-6 text-muted-foreground">
-                    Test the auspicious reminder dispatcher without sending real push notifications.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Button
-                      onClick={() => void runReminderDryRun()}
-                      disabled={reminderState === "loading"}
-                      className="h-11 rounded-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90"
-                    >
-                      {reminderState === "loading" ? (
-                        <>
-                          <LoaderCircle className="h-4 w-4 animate-spin" />
-                          Running dry run...
-                        </>
-                      ) : (
-                        "Run reminder dry run"
-                      )}
-                    </Button>
-
-                    <Button
-                      onClick={() => void runReminderTest()}
-                      disabled={reminderTestState === "sending"}
-                      variant="outline"
-                      className="h-11 rounded-full border-white/15 bg-white/[0.04] font-semibold text-foreground hover:bg-white/[0.08]"
-                    >
-                      {reminderTestState === "sending" ? (
-                        <>
-                          <LoaderCircle className="h-4 w-4 animate-spin" />
-                          Sending test push...
-                        </>
-                      ) : (
-                        "Send test reminder to me"
-                      )}
-                    </Button>
-                  </div>
-
-                  {reminderError ? (
-                    <div className="rounded-2xl border border-rose-400/25 bg-rose-500/10 px-4 py-4 text-sm text-rose-100">
-                      {reminderError}
-                    </div>
-                  ) : null}
-
-                  {reminderTestError ? (
-                    <div className="rounded-2xl border border-rose-400/25 bg-rose-500/10 px-4 py-4 text-sm text-rose-100">
-                      {reminderTestError}
-                    </div>
-                  ) : null}
-
-                  {reminderTestResult ? (
-                    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
-                      <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Test send</p>
-                      <p className="mt-2 text-sm leading-6 text-foreground">
-                        Tokens: {reminderTestResult.tokens} • Success: {reminderTestResult.successCount} • Failed:{" "}
-                        {reminderTestResult.failureCount}
-                      </p>
-                      {typeof reminderTestResult.prunedTokens === "number" ? (
-                        <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                          Invalid tokens pruned: {reminderTestResult.prunedTokens}
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  {reminderDryRun ? (
-                    <div className="space-y-3">
-                      <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
-                        <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Summary</p>
-                        <p className="mt-2 text-sm leading-6 text-foreground">
-                          Scanned {reminderDryRun.scannedProfiles} profiles and found {reminderDryRun.dueCount} due reminder
-                          {reminderDryRun.dueCount === 1 ? "" : "s"}.
-                        </p>
-                      </div>
-
-                      {reminderDryRun.dueReminders?.length ? (
-                        reminderDryRun.dueReminders.map((item) => (
-                          <div key={item.dedupeKey} className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
-                            <div className="flex items-center justify-between gap-3">
-                              <p className="text-sm font-medium text-foreground">{item.title}</p>
-                              <span className="text-[11px] uppercase tracking-[0.22em] text-primary">{item.category}</span>
-                            </div>
-                            <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.body}</p>
-                            <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                              Tokens: {item.tokens} • User: {item.userId}
-                            </p>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4 text-sm leading-6 text-muted-foreground">
-                          No reminders are due right now. That usually means the current time is outside the send windows
-                          or no saved profiles have matching preferences and push tokens yet.
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4 text-sm leading-6 text-muted-foreground">
-                      Run this once after enabling notification permission on at least one profile. It gives us the exact
-                      payload the scheduler would use later.
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="border-white/10 bg-white/[0.035] shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl">
-                <CardHeader className="space-y-3">
-                  <CardTitle className="text-xl text-foreground">Horoscope rule config</CardTitle>
-                  <CardDescription className="leading-6 text-muted-foreground">
-                    This shows what the dedicated rule engine is using right now.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
-                    <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Completeness thresholds</p>
-                    <p className="mt-2 text-sm leading-6 text-foreground">
-                      High: {horoscopeRuleConfig.completeness.highThreshold} fields, Medium:{" "}
-                      {horoscopeRuleConfig.completeness.mediumThreshold} fields
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
-                    <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Nakath distance rules</p>
-                    <p className="mt-2 text-sm leading-6 text-foreground">
-                      Configured distances: {Object.keys(horoscopeRuleConfig.nakath.distanceScores).join(", ")}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
-                    <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Lagna compatibility</p>
-                    <p className="mt-2 text-sm leading-6 text-foreground">
-                      Compatible element pairs: {horoscopeRuleConfig.lagna.compatiblePairs.join(", ")}
-                    </p>
-                  </div>
                 </CardContent>
               </Card>
 

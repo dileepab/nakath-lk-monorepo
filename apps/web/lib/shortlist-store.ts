@@ -9,9 +9,21 @@ import {
 
 import { getFirebaseDb, isFirebaseConfigured } from "@/lib/firebase-client"
 
+export const SHORTLIST_NOTE_TAGS = [
+  "Family liked",
+  "Need horoscope check",
+  "Revisit later",
+  "Spoken to family",
+] as const
+
+export type ShortlistNoteTag = (typeof SHORTLIST_NOTE_TAGS)[number]
+
 export type ShortlistEntry = {
   profileId: string
   savedAt: number | null
+  updatedAt: number | null
+  note: string
+  tags: ShortlistNoteTag[]
 }
 
 function shortlistCollection(userId: string) {
@@ -24,6 +36,19 @@ function toMillis(value: unknown) {
   return typeof candidate.toMillis === "function" ? candidate.toMillis() : null
 }
 
+function normalizeShortlistNote(note: string) {
+  return note.trim().slice(0, 320)
+}
+
+function normalizeShortlistTags(tags: string[]) {
+  const allowedTags = new Set<string>(SHORTLIST_NOTE_TAGS)
+  const uniqueTags = Array.from(
+    new Set(tags.map((tag) => tag.trim()).filter((tag) => allowedTags.has(tag))),
+  )
+
+  return SHORTLIST_NOTE_TAGS.filter((tag) => uniqueTags.includes(tag))
+}
+
 export async function listShortlistEntries(userId: string): Promise<ShortlistEntry[]> {
   if (!isFirebaseConfigured()) return []
 
@@ -33,6 +58,9 @@ export async function listShortlistEntries(userId: string): Promise<ShortlistEnt
     .map((document) => ({
       profileId: document.id,
       savedAt: toMillis(document.data().savedAt),
+      updatedAt: toMillis(document.data().updatedAt),
+      note: typeof document.data().note === "string" ? document.data().note : "",
+      tags: Array.isArray(document.data().tags) ? normalizeShortlistTags(document.data().tags) : [],
     }))
     .sort((left, right) => (right.savedAt ?? 0) - (left.savedAt ?? 0))
 }
@@ -45,6 +73,25 @@ export async function saveProfileToShortlist(userId: string, profileId: string) 
     {
       profileId,
       savedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  )
+}
+
+export async function updateShortlistEntry(
+  userId: string,
+  profileId: string,
+  input: { note: string; tags: string[] },
+) {
+  if (!isFirebaseConfigured()) throw new Error("Firebase is not configured")
+
+  await setDoc(
+    doc(shortlistCollection(userId), profileId),
+    {
+      profileId,
+      note: normalizeShortlistNote(input.note),
+      tags: normalizeShortlistTags(input.tags),
       updatedAt: serverTimestamp(),
     },
     { merge: true },

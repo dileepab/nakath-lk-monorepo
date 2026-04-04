@@ -21,6 +21,7 @@ import { AstrologyBackground } from "@/components/astrology-background"
 import { FamilyShareLinkManager } from "@/components/family-share-link-manager"
 import { ProfilePhotoCard } from "@/components/profile-photo-card"
 import { BiodataSharePanel } from "@/components/biodata-share-panel"
+import { ShortlistNotesPanel } from "@/components/shortlist-notes-panel"
 import { ShortlistToggleButton } from "@/components/shortlist-toggle-button"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -38,7 +39,14 @@ import {
   loadPublicProfileDraftFromBackend,
   loadOwnProfileDraftFromBackend,
 } from "@/lib/profile-store"
-import { listShortlistEntries, removeProfileFromShortlist, saveProfileToShortlist } from "@/lib/shortlist-store"
+import {
+  listShortlistEntries,
+  removeProfileFromShortlist,
+  saveProfileToShortlist,
+  updateShortlistEntry,
+  type ShortlistEntry,
+  type ShortlistNoteTag,
+} from "@/lib/shortlist-store"
 import { getReceivedMatches, getSentMatches, sendMatchRequest } from "@/lib/match-api"
 import { cn } from "@/lib/utils"
 
@@ -144,7 +152,7 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
   const [relationship, setRelationship] = useState<RelationshipState | null>(null)
   const [contactReveal, setContactReveal] = useState<ContactReveal | null>(null)
   const [loadingContact, setLoadingContact] = useState(false)
-  const [isShortlisted, setIsShortlisted] = useState(false)
+  const [shortlistEntry, setShortlistEntry] = useState<ShortlistEntry | null>(null)
   const [savingShortlist, setSavingShortlist] = useState(false)
 
   const handleRequest = async () => {
@@ -296,7 +304,7 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
 
   useEffect(() => {
     if (!user || profileId === "me" || !isFirebaseConfigured()) {
-      setIsShortlisted(false)
+      setShortlistEntry(null)
       return
     }
 
@@ -305,12 +313,12 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
     void listShortlistEntries(user.uid)
       .then((entries) => {
         if (!cancelled) {
-          setIsShortlisted(entries.some((entry) => entry.profileId === profileId))
+          setShortlistEntry(entries.find((entry) => entry.profileId === profileId) ?? null)
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setIsShortlisted(false)
+          setShortlistEntry(null)
         }
       })
 
@@ -323,6 +331,7 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
     if (!profile) return ""
     return `${profile.draft.basics.firstName} ${profile.draft.basics.lastName}`.trim()
   }, [profile])
+  const isShortlisted = Boolean(shortlistEntry)
   const isUnlocked = relationship?.status === "approved"
   const hasPendingIncoming = relationship?.status === "pending" && relationship.direction === "incoming"
   const hasPendingOutgoing = relationship?.status === "pending" && relationship.direction === "outgoing"
@@ -336,14 +345,35 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
     try {
       if (isShortlisted) {
         await removeProfileFromShortlist(user.uid, profile.id)
-        setIsShortlisted(false)
+        setShortlistEntry(null)
       } else {
         await saveProfileToShortlist(user.uid, profile.id)
-        setIsShortlisted(true)
+        const now = Date.now()
+        setShortlistEntry({
+          profileId: profile.id,
+          savedAt: now,
+          updatedAt: now,
+          note: "",
+          tags: [],
+        })
       }
     } finally {
       setSavingShortlist(false)
     }
+  }
+
+  async function handleSaveShortlistNotes(next: { note: string; tags: ShortlistNoteTag[] }) {
+    if (!user || !profile || !shortlistEntry) {
+      throw new Error("Save this profile first, then add private notes.")
+    }
+
+    await updateShortlistEntry(user.uid, profile.id, next)
+    setShortlistEntry({
+      ...shortlistEntry,
+      note: next.note,
+      tags: next.tags,
+      updatedAt: Date.now(),
+    })
   }
 
   useEffect(() => {
@@ -596,6 +626,15 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                     <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1 text-foreground">
                       {verified ? "Verified profile" : "Verification in progress"}
                     </Badge>
+                    {shortlistEntry?.tags.map((tag) => (
+                      <Badge
+                        key={tag}
+                        variant="outline"
+                        className="rounded-full border-primary/25 bg-primary/10 px-3 py-1 text-primary"
+                      >
+                        {tag}
+                      </Badge>
+                    ))}
                   </div>
                 </CardHeader>
 
@@ -716,6 +755,22 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                   />
 
                   {profile.source === "current-user" ? <FamilyShareLinkManager draft={draft} /> : null}
+
+                  {profile.source !== "current-user" && shortlistEntry ? (
+                    <ShortlistNotesPanel
+                      entry={shortlistEntry}
+                      onSave={handleSaveShortlistNotes}
+                    />
+                  ) : null}
+
+                  {profile.source !== "current-user" && !shortlistEntry ? (
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-5">
+                      <p className="text-sm font-semibold text-foreground">Private family notes</p>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                        Save this profile first if you want to keep private family feedback, follow-up notes, or quick tags for later.
+                      </p>
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
 

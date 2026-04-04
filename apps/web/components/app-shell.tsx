@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
-import { Bookmark, LogOut, Star } from "lucide-react"
+import { Bookmark, LogOut, ShieldCheck, Star } from "lucide-react"
 
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
@@ -19,6 +19,7 @@ import {
 
 type ReviewSessionPayload = {
   access?: boolean
+  role?: "user" | "reviewer" | "admin"
 }
 
 function displayNameFromUser(email: string | null | undefined, displayName: string | null | undefined) {
@@ -32,6 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { user, loading, signOutUser } = useAuth()
   const [hasReviewAccess, setHasReviewAccess] = useState(false)
+  const [reviewRole, setReviewRole] = useState<"reviewer" | "admin" | null>(null)
 
   const showChrome = isAppChromeRoute(pathname)
   const activeKey = getActiveAppNavKey(pathname)
@@ -39,6 +41,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!showChrome || loading || !user) {
       setHasReviewAccess(false)
+      setReviewRole(null)
       return
     }
 
@@ -55,17 +58,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         })
 
         if (!response.ok) {
-          if (!cancelled) setHasReviewAccess(false)
+          if (!cancelled) {
+            setHasReviewAccess(false)
+            setReviewRole(null)
+          }
           return
         }
 
         const payload = (await response.json()) as ReviewSessionPayload
         if (!cancelled) {
           setHasReviewAccess(Boolean(payload.access))
+          setReviewRole(payload.access && (payload.role === "admin" || payload.role === "reviewer") ? payload.role : null)
         }
       } catch {
         if (!cancelled) {
           setHasReviewAccess(false)
+          setReviewRole(null)
         }
       }
     }
@@ -104,6 +112,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const accountLabel = displayNameFromUser(user?.email, user?.displayName)
   const savedPageActive = pathname === "/saved"
+  const reviewPageActive = activeKey === "review"
+  const reviewToolsLabel = reviewRole === "admin" ? "Admin tools" : "Review tools"
 
   return (
     <>
@@ -145,6 +155,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-2">
             {user ? (
               <>
+                {hasReviewAccess ? (
+                  <Button
+                    asChild
+                    variant="outline"
+                    className={cn(
+                      "rounded-full border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08] hover:text-white",
+                      reviewPageActive ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary" : "",
+                    )}
+                  >
+                    <Link href="/review">
+                      <ShieldCheck className="h-4 w-4" />
+                      <span className="hidden sm:inline">{reviewToolsLabel}</span>
+                    </Link>
+                  </Button>
+                ) : null}
                 <Button
                   asChild
                   variant="outline"
@@ -186,6 +211,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="pb-24 md:pb-0">{children}</div>
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#0B0B0C]/92 px-3 py-3 backdrop-blur-xl lg:hidden">
+        {hasReviewAccess ? (
+          <div className="mx-auto mb-2 max-w-2xl">
+            <Link
+              href="/review"
+              className={cn(
+                "flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm transition-all",
+                reviewPageActive
+                  ? "border-primary/40 bg-primary/15 text-primary"
+                  : "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08] hover:text-white",
+              )}
+            >
+              <ShieldCheck className="h-4 w-4" />
+              {reviewToolsLabel}
+            </Link>
+          </div>
+        ) : null}
         <div className="mx-auto grid max-w-2xl grid-cols-5 gap-2">
           {primaryAppNav.map((item) => {
             const Icon = item.icon
