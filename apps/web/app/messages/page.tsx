@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { ChatWindow } from "@/components/chat-window"
 import { getProfileDisplayName, getProfileSummaryLine } from "@/lib/profile-presenter"
-import { getReceivedMatches, getSentMatches } from "@/lib/match-api"
+import { subscribeReceivedMatches, subscribeSentMatches } from "@/lib/match-api"
 import { loadPublicProfileDraftFromBackend } from "@/lib/profile-store"
 import { type MatchRequest, type ProfileDraft } from "@acme/core"
 
@@ -28,6 +28,18 @@ function displayNameFromDraft(draft: ProfileDraft | null, fallbackUserId: string
 
 function profileMetaFromDraft(draft: ProfileDraft | null) {
   return getProfileSummaryLine(draft, "Approved introduction")
+}
+
+function formatConversationTime(value: number | undefined) {
+  if (!value) return ""
+
+  return new Intl.DateTimeFormat("en-LK", {
+    hour: "numeric",
+    minute: "2-digit",
+    month: "short",
+    day: "numeric",
+    timeZone: "Asia/Colombo",
+  }).format(value)
 }
 
 function MessagesPageContent() {
@@ -50,10 +62,15 @@ function MessagesPageContent() {
 
     let cancelled = false
 
-    async function loadMatches() {
+    async function syncMatches(received: MatchRequest[], sent: MatchRequest[]) {
       try {
-        const [received, sent] = await Promise.all([getReceivedMatches(currentUser.uid), getSentMatches(currentUser.uid)])
-        const approvedMatches = [...received, ...sent].filter((match) => match.status === "approved")
+        const approvedMatches = [...received, ...sent]
+          .filter((match) => match.status === "approved")
+          .sort(
+            (left, right) =>
+              (right.lastMessageAt ?? right.updatedAt ?? right.createdAt) -
+              (left.lastMessageAt ?? left.updatedAt ?? left.createdAt),
+          )
         const otherUserIds = Array.from(
           new Set(
             approvedMatches.map((match) => (match.senderId === currentUser.uid ? match.receiverId : match.senderId)),
@@ -80,8 +97,15 @@ function MessagesPageContent() {
         setMatches(nextMatches)
 
         const requestedMatchId = searchParams.get("matchId")
-        const initialMatch = nextMatches.find((item) => item.match.id === requestedMatchId) ?? nextMatches[0] ?? null
-        setActiveMatchId(initialMatch?.match.id ?? null)
+        const requestedMatch = requestedMatchId
+          ? nextMatches.find((item) => item.match.id === requestedMatchId) ?? null
+          : null
+        setActiveMatchId((current) => {
+          if (current && nextMatches.some((item) => item.match.id === current)) {
+            return current
+          }
+          return requestedMatch?.match.id ?? null
+        })
       } finally {
         if (!cancelled) {
           setLoadingMatches(false)
@@ -89,10 +113,23 @@ function MessagesPageContent() {
       }
     }
 
-    void loadMatches()
+    let latestReceived: MatchRequest[] = []
+    let latestSent: MatchRequest[] = []
+
+    const unsubscribeReceived = subscribeReceivedMatches(currentUser.uid, (matches) => {
+      latestReceived = matches
+      void syncMatches(latestReceived, latestSent)
+    })
+
+    const unsubscribeSent = subscribeSentMatches(currentUser.uid, (matches) => {
+      latestSent = matches
+      void syncMatches(latestReceived, latestSent)
+    })
 
     return () => {
       cancelled = true
+      unsubscribeReceived()
+      unsubscribeSent()
     }
   }, [authLoading, router, searchParams, user])
 
@@ -105,6 +142,25 @@ function MessagesPageContent() {
     [activeMatchId, matches],
   )
   const currentUserId = user?.uid ?? null
+  const showMobileChat = Boolean(activeMatch && user)
+  const unreadConversationCount = useMemo(() => {
+    if (!currentUserId) return 0
+    return matches.filter((item) => {
+      const incomingCount = item.match.messageCounts?.[item.otherUserId] ?? 0
+      const readCount = item.match.readStates?.[currentUserId]?.readMessageCount ?? 0
+      return incomingCount - readCount > 0
+    }).length
+  }, [currentUserId, matches])
+
+  function openMatch(matchId: string) {
+    setActiveMatchId(matchId)
+    router.replace(`/messages?matchId=${encodeURIComponent(matchId)}`)
+  }
+
+  function closeMobileChat() {
+    setActiveMatchId(null)
+    router.replace("/messages")
+  }
 
   if (authLoading || loadingMatches) {
     return (
@@ -135,13 +191,28 @@ function MessagesPageContent() {
                 Back to dashboard
               </Link>
             </Button>
-            <Badge className="rounded-full bg-primary/90 px-3 py-1 text-primary-foreground">Private messages</Badge>
+            <div className="flex items-center gap-2">
+              {unreadConversationCount ? (
+                <Badge variant="outline" className="rounded-full border-primary/25 bg-primary/10 px-3 py-1 text-primary">
+                  {unreadConversationCount} unread
+                </Badge>
+              ) : null}
+              <Badge className="rounded-full bg-primary/90 px-3 py-1 text-primary-foreground">Private messages</Badge>
+            </div>
           </div>
 
-          <div className="mt-8 flex min-h-0 flex-1 flex-col gap-6 pb-8 lg:flex-row">
-            <Card className="flex h-[320px] shrink-0 flex-col overflow-hidden border-white/10 bg-[#121214]/90 shadow-[0_28px_90px_rgba(0,0,0,0.28)] backdrop-blur-xl lg:h-full lg:w-1/3">
+          <div className="mt-8 flex min-h-0 flex-1 gap-6 pb-8">
+            <Card
+              className={`${
+                showMobileChat ? "hidden lg:flex" : "flex"
+              } min-h-0 flex-1 flex-col overflow-hidden border-white/10 bg-[#121214]/95 shadow-[0_28px_90px_rgba(0,0,0,0.28)] backdrop-blur-xl lg:max-w-[360px] lg:flex-[0_0_360px]`}
+            >
               <div className="border-b border-white/10 p-5">
-                <h3 className="text-lg font-semibold text-foreground">Approved matches</h3>
+                <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Inbox</p>
+                <h3 className="mt-2 text-lg font-semibold text-foreground">Approved matches</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Keep conversations organized and return to the threads that need your attention.
+                </p>
               </div>
               <div className="flex-1 space-y-2 overflow-y-auto p-3">
                 {matches.length === 0 ? (
@@ -150,30 +221,55 @@ function MessagesPageContent() {
                   matches.map((item) => {
                     if (!currentUserId) return null
                     const selected = activeMatchId === item.match.id
-                    const myReadAt = item.match.readStates?.[currentUserId]?.lastReadAt ?? 0
-                    const hasUnread =
-                      item.match.lastMessageSenderId === item.otherUserId &&
-                      (item.match.lastMessageAt ?? 0) > myReadAt
+                    const incomingCount = item.match.messageCounts?.[item.otherUserId] ?? 0
+                    const readCount = item.match.readStates?.[currentUserId]?.readMessageCount ?? 0
+                    const unreadCount = Math.max(0, incomingCount - readCount)
+                    const lastActivityAt = item.match.lastMessageAt ?? item.match.updatedAt ?? item.match.createdAt
+                    const previewText =
+                      item.match.lastMessagePreview ||
+                      profileMetaFromDraft(item.otherProfile) ||
+                      "Approved introduction"
+
                     return (
                       <button
                         key={item.match.id}
-                        onClick={() => setActiveMatchId(item.match.id)}
-                        className={`w-full rounded-2xl border p-4 text-left transition-all ${
+                        onClick={() => openMatch(item.match.id)}
+                        className={`w-full rounded-3xl border p-4 text-left transition-all ${
                           selected
-                            ? "border-primary/30 bg-primary/20"
-                            : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]"
+                            ? "border-primary/35 bg-primary/15 shadow-[0_20px_45px_rgba(191,146,53,0.14)]"
+                            : unreadCount > 0
+                              ? "border-primary/20 bg-primary/8 hover:bg-primary/12"
+                              : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]"
                         }`}
                       >
-                        <p className="font-semibold text-sm text-foreground">
-                          {displayNameFromDraft(item.otherProfile, item.otherUserId)}
-                        </p>
-                        <div className="mt-1 flex items-center justify-between gap-2">
-                          <p className="text-xs text-muted-foreground">{profileMetaFromDraft(item.otherProfile)}</p>
-                          {hasUnread ? (
-                            <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-primary">
-                              New
-                            </span>
-                          ) : null}
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/25 text-sm font-semibold text-primary">
+                            {displayNameFromDraft(item.otherProfile, item.otherUserId).slice(0, 1).toUpperCase()}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-foreground">
+                                  {displayNameFromDraft(item.otherProfile, item.otherUserId)}
+                                </p>
+                                <p className="mt-1 truncate text-xs text-muted-foreground">
+                                  {formatConversationTime(lastActivityAt)}
+                                </p>
+                              </div>
+                              {unreadCount > 0 ? (
+                                <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-2 text-[11px] font-semibold text-primary-foreground">
+                                  {unreadCount}
+                                </span>
+                              ) : null}
+                            </div>
+                            <p
+                              className={`mt-3 line-clamp-2 text-sm leading-6 ${
+                                unreadCount > 0 ? "text-foreground" : "text-muted-foreground"
+                              }`}
+                            >
+                              {previewText}
+                            </p>
+                          </div>
                         </div>
                       </button>
                     )
@@ -183,23 +279,28 @@ function MessagesPageContent() {
             </Card>
 
             {activeMatch && user ? (
-              <ChatWindow
-                activeMatch={activeMatch}
-                currentUserId={user.uid}
-                otherDisplayName={
-                  activeMatchItem
-                    ? displayNameFromDraft(activeMatchItem.otherProfile, activeMatchItem.otherUserId)
-                    : undefined
-                }
-                otherProfile={activeMatchItem?.otherProfile ?? null}
-              />
+              <div className={`${showMobileChat ? "flex" : "hidden lg:flex"} min-h-0 flex-1`}>
+                <ChatWindow
+                  activeMatch={activeMatch}
+                  currentUserId={user.uid}
+                  otherDisplayName={
+                    activeMatchItem
+                      ? displayNameFromDraft(activeMatchItem.otherProfile, activeMatchItem.otherUserId)
+                      : undefined
+                  }
+                  otherProfile={activeMatchItem?.otherProfile ?? null}
+                  onBack={closeMobileChat}
+                />
+              </div>
             ) : (
-              <div className="flex flex-1 flex-col items-center justify-center rounded-3xl border border-dashed border-white/10 bg-white/[0.02]">
+              <div className="hidden flex-1 items-center justify-center rounded-3xl border border-dashed border-white/10 bg-white/[0.02] lg:flex">
                 <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/[0.04]">
                   <MessageCircle className="h-6 w-6 text-muted-foreground" />
                 </div>
-                <p className="font-medium text-muted-foreground">Select a match to start messaging</p>
-                <p className="mt-2 text-xs text-muted-foreground/60">Messages stay private between approved profiles</p>
+                <div className="ml-4">
+                  <p className="font-medium text-muted-foreground">Select a match to start messaging</p>
+                  <p className="mt-2 text-xs text-muted-foreground/60">Messages stay private between approved profiles</p>
+                </div>
               </div>
             )}
           </div>

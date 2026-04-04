@@ -3,6 +3,7 @@ export type MatchStatus = "pending" | "approved" | "rejected" | "withdrawn"
 export interface MatchReadState {
   lastReadAt?: number
   seenAt?: number
+  readMessageCount?: number
 }
 
 export interface MatchRequest {
@@ -14,5 +15,7 @@ export interface MatchRequest {
   updatedAt?: number
   lastMessageAt?: number
   lastMessageSenderId?: string
+  lastMessagePreview?: string
+  messageCounts?: Record<string, number | undefined>
   readStates?: Record<string, MatchReadState | undefined>
 }

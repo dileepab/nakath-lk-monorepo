@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Send, LoaderCircle, Sparkles, Video, PhoneOff, MessageSquareHeart } from "lucide-react"
+import { Send, LoaderCircle, Sparkles, Video, PhoneOff, MessageSquareHeart, ArrowLeft } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -76,11 +76,13 @@ export function ChatWindow({
   currentUserId,
   otherDisplayName,
   otherProfile,
+  onBack,
 }: {
   activeMatch: MatchRequest
   currentUserId: string
   otherDisplayName?: string
   otherProfile?: ProfileDraft | null
+  onBack?: () => void
 }) {
   const { user } = useAuth()
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -216,16 +218,28 @@ export function ChatWindow({
       animate={{ opacity: 1, x: 0 }}
       className="flex-1 min-h-0 flex flex-col lg:flex-row shadow-[0_28px_90px_rgba(0,0,0,0.28)]"
     >
-      <Card className="flex-1 flex flex-col border-white/10 bg-[#121214]/90 backdrop-blur-xl overflow-hidden rounded-r-none lg:rounded-r-2xl border-r-0 lg:border-r">
+      <Card className="flex-1 flex min-h-0 flex-col overflow-hidden border-white/10 bg-[#121214]/90 backdrop-blur-xl lg:rounded-2xl">
         {/* Header */}
         <div className="p-5 border-b border-white/10 flex items-center justify-between shrink-0 bg-black/40">
-          <div>
+          <div className="flex items-center gap-3">
+            {onBack ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={onBack}
+                className="h-10 w-10 rounded-full border border-white/10 bg-white/[0.04] p-0 text-foreground hover:bg-white/[0.08] lg:hidden"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            ) : null}
+            <div>
             <h3 className="font-semibold text-foreground">
               Chatting with {chatTitle}
             </h3>
             <p className="text-xs text-primary mt-1 flex items-center gap-1">
               Encrypted Connection
             </p>
+            </div>
           </div>
           {!videoActive && (
             <Button 

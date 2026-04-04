@@ -32,6 +32,7 @@ export async function POST(
 
     const db = getFirebaseAdminDb()
     const msgRef = db.collection("matches").doc(matchId).collection("messages").doc()
+    const currentSenderCount = matchResult.match.messageCounts?.[authResult.decoded.uid] ?? 0
     const message: ChatMessage = {
       id: msgRef.id,
       matchId,
@@ -50,8 +51,11 @@ export async function POST(
         updatedAt: message.createdAt,
         lastMessageAt: message.createdAt,
         lastMessageSenderId: authResult.decoded.uid,
+        lastMessagePreview: message.text.slice(0, 120),
+        [`messageCounts.${authResult.decoded.uid}`]: FieldValue.increment(1),
         [`readStates.${authResult.decoded.uid}.lastReadAt`]: message.createdAt,
         [`readStates.${authResult.decoded.uid}.seenAt`]: message.createdAt,
+        [`readStates.${authResult.decoded.uid}.readMessageCount`]: currentSenderCount + 1,
       },
       { merge: true },
     )

@@ -27,8 +27,13 @@ export async function POST(
       return matchResult.response
     }
 
+    const otherUserId =
+      matchResult.match.senderId === authResult.decoded.uid
+        ? matchResult.match.receiverId
+        : matchResult.match.senderId
     const currentState = matchResult.match.readStates?.[authResult.decoded.uid]
     const nextReadAt = Math.max(currentState?.lastReadAt ?? 0, lastReadAt)
+    const nextReadCount = matchResult.match.messageCounts?.[otherUserId] ?? 0
     const seenAt = Date.now()
 
     await getFirebaseAdminDb().collection("matches").doc(matchId).set(
@@ -36,6 +41,7 @@ export async function POST(
         updatedAt: seenAt,
         [`readStates.${authResult.decoded.uid}.lastReadAt`]: nextReadAt,
         [`readStates.${authResult.decoded.uid}.seenAt`]: seenAt,
+        [`readStates.${authResult.decoded.uid}.readMessageCount`]: nextReadCount,
       },
       { merge: true },
     )
@@ -45,6 +51,7 @@ export async function POST(
       readState: {
         lastReadAt: nextReadAt,
         seenAt,
+        readMessageCount: nextReadCount,
       },
     })
   } catch {

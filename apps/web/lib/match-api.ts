@@ -1,4 +1,4 @@
-import { collection, getDocs, query, where } from "firebase/firestore"
+import { collection, getDocs, onSnapshot, query, where } from "firebase/firestore"
 import { getFirebaseDb, isFirebaseConfigured } from "./firebase-client"
 import { type MatchRequest, type MatchStatus } from "@acme/core"
 
@@ -63,4 +63,22 @@ export async function getSentMatches(userId: string): Promise<MatchRequest[]> {
   
   const snapshot = await getDocs(q)
   return snapshot.docs.map(doc => doc.data() as MatchRequest)
+}
+
+export function subscribeReceivedMatches(userId: string, callback: (matches: MatchRequest[]) => void) {
+  if (!isFirebaseConfigured()) return () => {}
+
+  const q = query(collection(getFirebaseDb(), "matches"), where("receiverId", "==", userId))
+  return onSnapshot(q, (snapshot) => {
+    callback(snapshot.docs.map((document) => document.data() as MatchRequest))
+  })
+}
+
+export function subscribeSentMatches(userId: string, callback: (matches: MatchRequest[]) => void) {
+  if (!isFirebaseConfigured()) return () => {}
+
+  const q = query(collection(getFirebaseDb(), "matches"), where("senderId", "==", userId))
+  return onSnapshot(q, (snapshot) => {
+    callback(snapshot.docs.map((document) => document.data() as MatchRequest))
+  })
 }
