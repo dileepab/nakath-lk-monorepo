@@ -178,6 +178,7 @@ function MessagesPageContent() {
                     ? displayNameFromDraft(activeMatchItem.otherProfile, activeMatchItem.otherUserId)
                     : undefined
                 }
+                otherProfile={activeMatchItem?.otherProfile ?? null}
               />
             ) : (
               <div className="flex flex-1 flex-col items-center justify-center rounded-3xl border border-dashed border-white/10 bg-white/[0.02]">
