@@ -104,6 +104,7 @@ function MessagesPageContent() {
     () => matches.find((item) => item.match.id === activeMatchId) ?? null,
     [activeMatchId, matches],
   )
+  const currentUserId = user?.uid ?? null
 
   if (authLoading || loadingMatches) {
     return (
@@ -147,7 +148,12 @@ function MessagesPageContent() {
                   <p className="p-3 text-center text-sm text-muted-foreground">No approved matches yet.</p>
                 ) : (
                   matches.map((item) => {
+                    if (!currentUserId) return null
                     const selected = activeMatchId === item.match.id
+                    const myReadAt = item.match.readStates?.[currentUserId]?.lastReadAt ?? 0
+                    const hasUnread =
+                      item.match.lastMessageSenderId === item.otherUserId &&
+                      (item.match.lastMessageAt ?? 0) > myReadAt
                     return (
                       <button
                         key={item.match.id}
@@ -161,7 +167,14 @@ function MessagesPageContent() {
                         <p className="font-semibold text-sm text-foreground">
                           {displayNameFromDraft(item.otherProfile, item.otherUserId)}
                         </p>
-                        <p className="mt-1 text-xs text-muted-foreground">{profileMetaFromDraft(item.otherProfile)}</p>
+                        <div className="mt-1 flex items-center justify-between gap-2">
+                          <p className="text-xs text-muted-foreground">{profileMetaFromDraft(item.otherProfile)}</p>
+                          {hasUnread ? (
+                            <span className="rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-primary">
+                              New
+                            </span>
+                          ) : null}
+                        </div>
                       </button>
                     )
                   })

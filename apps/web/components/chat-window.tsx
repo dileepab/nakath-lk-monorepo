@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/components/auth-provider"
 import { type MatchRequest, type ChatMessage, type ProfileDraft } from "@acme/core"
-import { subscribeToMessages, sendMessage } from "@/lib/chat-api"
+import { markMatchRead, subscribeToMatch, subscribeToMessages, sendMessage } from "@/lib/chat-api"
 import { buildGuidedFollowUps, shouldShowGuidedFollowUps } from "@/lib/chat-followups"
 import { buildGuidedStarters } from "@/lib/chat-starters"
 
@@ -84,6 +84,7 @@ export function ChatWindow({
 }) {
   const { user } = useAuth()
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [matchState, setMatchState] = useState<MatchRequest>(activeMatch)
   const [inputText, setInputText] = useState("")
   
   const [loadingIcebreakers, setLoadingIcebreakers] = useState(false)
@@ -92,6 +93,7 @@ export function ChatWindow({
   const [videoActive, setVideoActive] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const lastReadRequestRef = useRef(0)
   const guidedStarters = useMemo(() => buildGuidedStarters(otherProfile), [otherProfile])
   const guidedFollowUps = useMemo(
     () => buildGuidedFollowUps(otherProfile, messages, currentUserId),
@@ -106,14 +108,51 @@ export function ChatWindow({
   }, [activeMatch.id])
 
   useEffect(() => {
+    setMatchState(activeMatch)
+    const unsubscribe = subscribeToMatch(activeMatch.id, (match) => {
+      if (match) {
+        setMatchState(match)
+      }
+    })
+    return () => unsubscribe()
+  }, [activeMatch])
+
+  useEffect(() => {
     setIcebreakers([])
     setIcebreakerError(null)
     setInputText("")
+    lastReadRequestRef.current = 0
   }, [activeMatch.id])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
+
+  const otherUserId = currentUserId === matchState.senderId ? matchState.receiverId : matchState.senderId
+  const myReadAt = matchState.readStates?.[currentUserId]?.lastReadAt ?? 0
+  const otherReadAt = matchState.readStates?.[otherUserId]?.lastReadAt ?? 0
+  const latestOutgoingMessageId = [...messages].reverse().find((message) => message.senderId === currentUserId)?.id ?? null
+
+  useEffect(() => {
+    if (!user || messages.length === 0) return
+
+    const latestIncomingAt =
+      [...messages].reverse().find((message) => message.senderId !== currentUserId)?.createdAt ?? null
+
+    if (!latestIncomingAt) return
+
+    const effectiveReadAt = Math.max(myReadAt, lastReadRequestRef.current)
+    if (latestIncomingAt <= effectiveReadAt) return
+
+    lastReadRequestRef.current = latestIncomingAt
+
+    void user
+      .getIdToken()
+      .then((idToken) => markMatchRead(idToken, activeMatch.id, latestIncomingAt))
+      .catch(() => {
+        lastReadRequestRef.current = myReadAt
+      })
+  }, [activeMatch.id, currentUserId, messages, myReadAt, user])
 
   const submitMessage = async (manualText?: string) => {
     const textToSend = manualText || inputText
@@ -204,6 +243,9 @@ export function ChatWindow({
           <AnimatePresence>
             {messages.map(msg => {
               const isMe = msg.senderId === currentUserId
+              const isLatestOutgoingMessage = msg.id === latestOutgoingMessageId
+              const showSeenState = isMe && isLatestOutgoingMessage
+              const isSeen = showSeenState && otherReadAt >= msg.createdAt
               return (
                 <motion.div 
                   key={msg.id}
@@ -211,10 +253,17 @@ export function ChatWindow({
                   animate={{ opacity: 1, y: 0 }}
                   className={`flex ${isMe ? "justify-end" : "justify-start"}`}
                 >
-                  <div className={`max-w-[85%] lg:max-w-[75%] px-4 py-3 rounded-2xl ${
-                    isMe ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-white/[0.08] text-foreground rounded-tl-sm border border-white/10"
-                  }`}>
-                    <p className="text-sm leading-relaxed">{msg.text}</p>
+                  <div>
+                    <div className={`max-w-[85%] lg:max-w-[75%] px-4 py-3 rounded-2xl ${
+                      isMe ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-white/[0.08] text-foreground rounded-tl-sm border border-white/10"
+                    }`}>
+                      <p className="text-sm leading-relaxed">{msg.text}</p>
+                    </div>
+                    {showSeenState ? (
+                      <p className="mt-2 px-2 text-right text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                        {isSeen ? "Seen" : "Delivered"}
+                      </p>
+                    ) : null}
                   </div>
                 </motion.div>
               )

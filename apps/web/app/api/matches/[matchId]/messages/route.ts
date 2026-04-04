@@ -45,6 +45,17 @@ export async function POST(
       createdAt: FieldValue.serverTimestamp(),
     })
 
+    await db.collection("matches").doc(matchId).set(
+      {
+        updatedAt: message.createdAt,
+        lastMessageAt: message.createdAt,
+        lastMessageSenderId: authResult.decoded.uid,
+        [`readStates.${authResult.decoded.uid}.lastReadAt`]: message.createdAt,
+        [`readStates.${authResult.decoded.uid}.seenAt`]: message.createdAt,
+      },
+      { merge: true },
+    )
+
     try {
       await notifyMatchActivity({
         type: "message-received",
