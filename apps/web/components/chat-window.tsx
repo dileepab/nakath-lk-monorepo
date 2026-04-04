@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/components/auth-provider"
 import { type MatchRequest, type ChatMessage, type ProfileDraft } from "@acme/core"
 import { subscribeToMessages, sendMessage } from "@/lib/chat-api"
+import { buildGuidedFollowUps, shouldShowGuidedFollowUps } from "@/lib/chat-followups"
 import { buildGuidedStarters } from "@/lib/chat-starters"
 
 /**
@@ -92,6 +93,10 @@ export function ChatWindow({
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const guidedStarters = useMemo(() => buildGuidedStarters(otherProfile), [otherProfile])
+  const guidedFollowUps = useMemo(
+    () => buildGuidedFollowUps(otherProfile, messages, currentUserId),
+    [currentUserId, messages, otherProfile],
+  )
 
   useEffect(() => {
     const unsubscribe = subscribeToMessages(activeMatch.id, (msgs) => {
@@ -163,6 +168,7 @@ export function ChatWindow({
 
   const chatTitle = otherDisplayName || "your match"
   const showGuidedStart = messages.length === 0
+  const showGuidedFollowUps = shouldShowGuidedFollowUps(messages, currentUserId)
 
   return (
     <motion.div 
@@ -297,6 +303,35 @@ export function ChatWindow({
                   ))}
                 </div>
               ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {showGuidedFollowUps ? (
+          <div className="border-t border-white/10 bg-black/25 px-5 py-4">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex items-center gap-2">
+                <MessageSquareHeart className="h-4 w-4 text-primary" />
+                <p className="text-sm font-semibold text-foreground">What to ask next</p>
+              </div>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+                The conversation is moving. Here are a few gentle follow-ups you can use or edit before sending.
+              </p>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                {guidedFollowUps.map((followUp) => (
+                  <button
+                    key={followUp.id}
+                    type="button"
+                    onClick={() => handleUseStarter(followUp.text)}
+                    className="rounded-3xl border border-white/10 bg-black/20 p-4 text-left transition-colors hover:bg-white/[0.06]"
+                  >
+                    <p className="text-sm font-semibold text-foreground">{followUp.label}</p>
+                    <p className="mt-2 text-xs uppercase tracking-[0.22em] text-primary">{followUp.description}</p>
+                    <p className="mt-3 text-sm leading-6 text-muted-foreground">{followUp.text}</p>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         ) : null}
