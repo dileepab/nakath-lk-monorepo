@@ -911,9 +911,13 @@ export function ReviewWorkspace() {
                                   <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-foreground">
                                     {scorePreview.confidence} confidence
                                   </span>
+                                  <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-primary">
+                                    {scorePreview.traditionalEvidenceLabel}
+                                  </span>
                                 </div>
                                 <p className="mt-3 text-sm leading-7 text-foreground/90">{scorePreview.summary}</p>
                                 <p className="mt-3 text-xs leading-6 text-muted-foreground">{scorePreview.confidenceNote}</p>
+                                <p className="mt-2 text-xs leading-6 text-muted-foreground">{scorePreview.traditionalEvidenceNote}</p>
                               </div>
                               <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-right">
                                 <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Overall fit</p>
@@ -935,6 +939,9 @@ export function ReviewWorkspace() {
                               </div>
                               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                                 {scorePreview.sections.traditional.summary}
+                              </p>
+                              <p className="mt-3 text-xs leading-6 text-muted-foreground">
+                                {scorePreview.traditionalEvidenceLabel}: {scorePreview.traditionalEvidenceNote}
                               </p>
                             </div>
 

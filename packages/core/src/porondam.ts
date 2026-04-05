@@ -3,6 +3,7 @@ import { evaluateHoroscopeRules } from "./horoscope-rules"
 
 export type PorondamConfidence = "low" | "medium" | "high"
 export type PorondamFactorGroup = "traditional" | "practical"
+export type TraditionalEvidence = "chart-backed" | "partially-chart-backed" | "manual"
 
 export type PorondamFactor = {
   key: "horoscope" | "age" | "values" | "location" | "trust"
@@ -26,6 +27,9 @@ export type PorondamPreview = {
   max: number
   confidence: PorondamConfidence
   confidenceNote: string
+  traditionalEvidence: TraditionalEvidence
+  traditionalEvidenceLabel: string
+  traditionalEvidenceNote: string
   traditionalScore: number
   traditionalMax: number
   practicalScore: number
@@ -112,7 +116,21 @@ function practicalSummary(score: number) {
 
 export function calculatePorondamPreview(reference: ProfileDraft, candidate: ProfileDraft): PorondamPreview {
   const horoscopeRules = evaluateHoroscopeRules(reference, candidate)
-  const hasComputedCharts = Boolean(reference.horoscopeComputed) && Boolean(candidate.horoscopeComputed)
+  const computedChartsCount = Number(Boolean(reference.horoscopeComputed)) + Number(Boolean(candidate.horoscopeComputed))
+  const traditionalEvidence: TraditionalEvidence =
+    computedChartsCount === 2 ? "chart-backed" : computedChartsCount === 1 ? "partially-chart-backed" : "manual"
+  const traditionalEvidenceLabel =
+    traditionalEvidence === "chart-backed"
+      ? "Chart-backed"
+      : traditionalEvidence === "partially-chart-backed"
+        ? "Mixed chart data"
+        : "Manual inputs"
+  const traditionalEvidenceNote =
+    traditionalEvidence === "chart-backed"
+      ? "Both sides have computed chart snapshots, so the traditional score is grounded in normalized birth details instead of only manual fields."
+      : traditionalEvidence === "partially-chart-backed"
+        ? "One side has a computed chart snapshot and the other still depends on manual birth details, so treat the traditional score as a blended preview."
+        : "The traditional score still depends on manually entered nakath and lagna values because neither side has a computed chart snapshot yet."
 
   const candidateAge = profileAge(candidate)
   const referenceAge = profileAge(reference)
@@ -264,16 +282,19 @@ export function calculatePorondamPreview(reference: ProfileDraft, candidate: Pro
     confidence: horoscopeRules.confidence,
     confidenceNote:
       horoscopeRules.confidence === "high"
-        ? hasComputedCharts
+        ? traditionalEvidence === "chart-backed"
           ? "Both sides now have computed chart snapshots backed by exact-enough birth details."
           : "Exact birth date, time, place, nakath, and lagna are present on both sides."
         : horoscopeRules.confidence === "medium"
-          ? hasComputedCharts
+          ? traditionalEvidence !== "manual"
             ? "The traditional preview is using at least one computed chart snapshot, but the pair still needs cleaner birth inputs for a high-confidence read."
             : "There is enough birth data for a useful preview, but the astrology side is not yet fully complete."
-          : hasComputedCharts
+          : traditionalEvidence !== "manual"
             ? "A chart snapshot exists, but treat the traditional score as tentative until both sides have more reliable birth details."
             : "Treat the traditional score as tentative until more birth details are captured.",
+    traditionalEvidence,
+    traditionalEvidenceLabel,
+    traditionalEvidenceNote,
     traditionalScore,
     traditionalMax,
     practicalScore,

@@ -805,10 +805,21 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                                   {preview.confidence} confidence
                                 </Badge>
                               ) : null}
+                              {preview ? (
+                                <Badge
+                                  variant="outline"
+                                  className="rounded-full border-primary/20 bg-primary/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-primary"
+                                >
+                                  {preview.traditionalEvidenceLabel}
+                                </Badge>
+                              ) : null}
                             </div>
                             <p className="mt-2 text-sm leading-6 text-foreground/85">{preview?.summary}</p>
                             {preview ? (
-                              <p className="mt-3 text-xs leading-6 text-muted-foreground">{preview.confidenceNote}</p>
+                              <>
+                                <p className="mt-3 text-xs leading-6 text-muted-foreground">{preview.confidenceNote}</p>
+                                <p className="mt-2 text-xs leading-6 text-muted-foreground">{preview.traditionalEvidenceNote}</p>
+                              </>
                             ) : null}
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-right">
@@ -828,6 +839,9 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                             </div>
                             <p className="mt-2 text-sm leading-6 text-muted-foreground">
                               {preview.sections.traditional.summary}
+                            </p>
+                            <p className="mt-3 text-xs leading-6 text-muted-foreground">
+                              {preview.traditionalEvidenceLabel}: {preview.traditionalEvidenceNote}
                             </p>
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">

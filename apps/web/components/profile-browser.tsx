@@ -186,9 +186,19 @@ function ProfileBrowseCard({
                   {isReferenceProfile ? "Used to score other profiles." : preview?.label}
                 </p>
                 {!isReferenceProfile && preview ? (
-                  <p className="mt-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                    Trad {preview.traditionalScore}/{preview.traditionalMax} • Practical {preview.practicalScore}/{preview.practicalMax}
-                  </p>
+                  <>
+                    <p className="mt-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                      Trad {preview.traditionalScore}/{preview.traditionalMax} • Practical {preview.practicalScore}/{preview.practicalMax}
+                    </p>
+                    <div className="mt-2 flex justify-end">
+                      <Badge
+                        variant="outline"
+                        className="rounded-full border-white/10 bg-black/20 px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-foreground"
+                      >
+                        {preview.traditionalEvidenceLabel}
+                      </Badge>
+                    </div>
+                  </>
                 ) : null}
               </div>
             </div>
@@ -217,6 +227,9 @@ function ProfileBrowseCard({
                         .slice()
                         .sort((left, right) => right.score / right.max - left.score / left.max)[0]?.note ?? "Match factors are still being calculated."}
                 </p>
+                {!isReferenceProfile && preview ? (
+                  <p className="mt-3 text-xs leading-6 text-muted-foreground">{preview.traditionalEvidenceNote}</p>
+                ) : null}
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
                 <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Photo rule</p>
