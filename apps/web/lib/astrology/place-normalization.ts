@@ -2,43 +2,42 @@ import "server-only"
 
 import { type HoroscopePlaceNormalization } from "@acme/core"
 
-const sriLankaPlaceMap: Record<string, { normalizedPlaceName: string; latitude: number; longitude: number }> = {
-  colombo: { normalizedPlaceName: "Colombo, Sri Lanka", latitude: 6.9271, longitude: 79.8612 },
-  gampaha: { normalizedPlaceName: "Gampaha, Sri Lanka", latitude: 7.0917, longitude: 79.9999 },
-  kalutara: { normalizedPlaceName: "Kalutara, Sri Lanka", latitude: 6.5854, longitude: 79.9607 },
-  kandy: { normalizedPlaceName: "Kandy, Sri Lanka", latitude: 7.2906, longitude: 80.6337 },
-  galle: { normalizedPlaceName: "Galle, Sri Lanka", latitude: 6.0535, longitude: 80.221 },
-  kurunegala: { normalizedPlaceName: "Kurunegala, Sri Lanka", latitude: 7.4863, longitude: 80.3623 },
-  matara: { normalizedPlaceName: "Matara, Sri Lanka", latitude: 5.9549, longitude: 80.555 },
-  jaffna: { normalizedPlaceName: "Jaffna, Sri Lanka", latitude: 9.6615, longitude: 80.0255 },
-}
+import {
+  normalizeSriLankaLookupKey,
+  sriLankaBirthPlaceSuggestions,
+  sriLankaPlaces,
+  toSriLankaTitleCase,
+  type KnownSriLankaPlace,
+} from "./sri-lanka-places"
 
-function normalizeLookupKey(value: string) {
-  return value.trim().toLowerCase().replace(/\s+/g, " ")
-}
+const placeCache = new Map<string, HoroscopePlaceNormalization>()
+const knownPlaceMap = buildKnownPlaceMap()
 
-function toTitleCase(value: string) {
-  return value
-    .trim()
-    .split(/\s+/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(" ")
-}
+function buildKnownPlaceMap() {
+  const map = new Map<string, KnownSriLankaPlace>()
 
-export function normalizeSriLankaBirthPlace(value: string): HoroscopePlaceNormalization {
-  const key = normalizeLookupKey(value)
-  const knownPlace = sriLankaPlaceMap[key]
+  for (const place of sriLankaPlaces) {
+    map.set(normalizeSriLankaLookupKey(place.name), place)
 
-  if (knownPlace) {
-    return {
-      normalizedPlaceName: knownPlace.normalizedPlaceName,
-      latitude: knownPlace.latitude,
-      longitude: knownPlace.longitude,
-      timeZone: "Asia/Colombo",
+    for (const alias of place.aliases ?? []) {
+      map.set(normalizeSriLankaLookupKey(alias), place)
     }
   }
 
-  const normalizedPlaceName = value.trim() ? `${toTitleCase(value)}, Sri Lanka` : ""
+  return map
+}
+
+function formatKnownPlace(place: KnownSriLankaPlace): HoroscopePlaceNormalization {
+  return {
+    normalizedPlaceName: `${place.name}, Sri Lanka`,
+    latitude: place.latitude,
+    longitude: place.longitude,
+    timeZone: "Asia/Colombo",
+  }
+}
+
+function fallbackPlace(value: string): HoroscopePlaceNormalization {
+  const normalizedPlaceName = value.trim() ? `${toSriLankaTitleCase(value)}, Sri Lanka` : ""
 
   return {
     normalizedPlaceName,
@@ -46,4 +45,109 @@ export function normalizeSriLankaBirthPlace(value: string): HoroscopePlaceNormal
     longitude: null,
     timeZone: "Asia/Colombo",
   }
+}
+
+function extractPlaceName(result: {
+  display_name?: string
+  address?: Record<string, string | undefined>
+}) {
+  const address = result.address ?? {}
+
+  return (
+    address.city ??
+    address.town ??
+    address.village ??
+    address.municipality ??
+    address.suburb ??
+    address.county ??
+    result.display_name?.split(",")[0] ??
+    ""
+  )
+}
+
+async function lookupSriLankaPlace(value: string) {
+  const url = new URL("https://nominatim.openstreetmap.org/search")
+  url.searchParams.set("q", `${value}, Sri Lanka`)
+  url.searchParams.set("format", "jsonv2")
+  url.searchParams.set("countrycodes", "lk")
+  url.searchParams.set("addressdetails", "1")
+  url.searchParams.set("limit", "1")
+
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "Nakath.lk Matrimony/1.0 (birth place lookup)",
+    },
+    next: { revalidate: 60 * 60 * 24 * 30 },
+  }).catch(() => null)
+
+  if (!response?.ok) {
+    return null
+  }
+
+  const payload = (await response.json().catch(() => null)) as
+    | Array<{
+        lat?: string
+        lon?: string
+        display_name?: string
+        address?: Record<string, string | undefined>
+      }>
+    | null
+
+  const result = payload?.[0]
+  if (!result) {
+    return null
+  }
+
+  const latitude = Number(result.lat)
+  const longitude = Number(result.lon)
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null
+  }
+
+  const placeName = extractPlaceName(result)
+
+  return {
+    normalizedPlaceName: placeName ? `${toSriLankaTitleCase(placeName)}, Sri Lanka` : `${toSriLankaTitleCase(value)}, Sri Lanka`,
+    latitude,
+    longitude,
+    timeZone: "Asia/Colombo",
+  } satisfies HoroscopePlaceNormalization
+}
+
+export async function resolveSriLankaBirthPlace(value: string): Promise<HoroscopePlaceNormalization> {
+  const key = normalizeSriLankaLookupKey(value)
+
+  if (!key) {
+    return fallbackPlace(value)
+  }
+
+  const knownPlace = knownPlaceMap.get(key)
+  if (knownPlace) {
+    return formatKnownPlace(knownPlace)
+  }
+
+  const cachedPlace = placeCache.get(key)
+  if (cachedPlace) {
+    return cachedPlace
+  }
+
+  const remotePlace = await lookupSriLankaPlace(value)
+  if (remotePlace) {
+    placeCache.set(key, remotePlace)
+    return remotePlace
+  }
+
+  return fallbackPlace(value)
+}
+
+export function getSriLankaBirthPlaceSuggestions(query: string) {
+  const key = normalizeSriLankaLookupKey(query)
+  if (!key) {
+    return sriLankaBirthPlaceSuggestions.slice(0, 18)
+  }
+
+  return sriLankaBirthPlaceSuggestions
+    .filter((place) => normalizeSriLankaLookupKey(place).includes(key))
+    .slice(0, 18)
 }

@@ -7,7 +7,7 @@ import {
   type ProfileDraft,
 } from "@acme/core"
 
-import { normalizeSriLankaBirthPlace } from "./place-normalization"
+import { resolveSriLankaBirthPlace } from "./place-normalization"
 import {
   swissephJulianDayUtc,
   swissephLahiriAyanamsa,
@@ -147,12 +147,12 @@ function resolveBirthTime(draft: ProfileDraft) {
   }
 }
 
-export function buildHoroscopeSnapshot(draft: ProfileDraft): HoroscopeComputedSnapshot | null {
+export async function buildHoroscopeSnapshot(draft: ProfileDraft): Promise<HoroscopeComputedSnapshot | null> {
   if (!draft.horoscope.birthDate.trim() || !draft.horoscope.birthPlace.trim()) {
     return null
   }
 
-  const normalizedPlace = normalizeSriLankaBirthPlace(draft.horoscope.birthPlace)
+  const normalizedPlace = await resolveSriLankaBirthPlace(draft.horoscope.birthPlace)
   const birthDate = parseBirthDate(draft.horoscope.birthDate)
 
   if (!birthDate) {
@@ -198,10 +198,10 @@ export function buildHoroscopeSnapshot(draft: ProfileDraft): HoroscopeComputedSn
   }
 }
 
-export function applyHoroscopeSnapshotToDraft(draft: ProfileDraft): ProfileDraft {
+export async function applyHoroscopeSnapshotToDraft(draft: ProfileDraft): Promise<ProfileDraft> {
   const merged = mergeProfileDraft(draft)
-  const normalizedPlace = normalizeSriLankaBirthPlace(merged.horoscope.birthPlace)
-  const snapshot = buildHoroscopeSnapshot(merged)
+  const normalizedPlace = await resolveSriLankaBirthPlace(merged.horoscope.birthPlace)
+  const snapshot = await buildHoroscopeSnapshot(merged)
 
   return {
     ...merged,

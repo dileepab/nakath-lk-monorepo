@@ -66,6 +66,7 @@ import {
   saveProfileDraftToBackend,
 } from "@/lib/profile-store"
 import { generateHoroscopeChartSnapshot } from "@/lib/astrology-api"
+import { normalizeSriLankaLookupKey, sriLankaBirthPlaceSuggestions } from "@/lib/astrology/sri-lanka-places"
 import { useBiodataStore } from "@/lib/use-biodata-store"
 import { useResolvedMediaUrl } from "@/lib/use-resolved-media-url"
 import {
@@ -253,6 +254,22 @@ function SelectField({
   )
 }
 
+function pendingLagnaLabel(draft: ProfileDraft) {
+  if (!draft.horoscope.birthPlace.trim()) {
+    return "Add a birth place"
+  }
+
+  if (draft.horoscope.birthLatitude == null || draft.horoscope.birthLongitude == null) {
+    return "Birth place still needs coordinates"
+  }
+
+  if (!draft.horoscope.birthTime.trim() || draft.horoscope.birthTimeAccuracy === "unknown-time") {
+    return "Needs a reliable birth time"
+  }
+
+  return "Lagna pending"
+}
+
 function statusLabel(status: "not-submitted" | "submitted" | "verified") {
   if (status === "verified") return "Verified"
   if (status === "submitted") return "Submitted"
@@ -334,6 +351,7 @@ export function BiodataBuilder() {
   const [uploadMessage, setUploadMessage] = useState("Upload profile media after signing in to start the verification path.")
   const [chartStatus, setChartStatus] = useState<"idle" | "loading" | "ready" | "error">("idle")
   const [chartMessage, setChartMessage] = useState("Normalize the birth place and prepare the future horoscope snapshot.")
+  const [birthPlaceDirty, setBirthPlaceDirty] = useState(false)
   const previewDraft = useDeferredValue(draft)
   const horoscopeSnapshot = previewDraft.horoscopeComputed
   const lastChartSnapshotKeyRef = useRef<string | null>(null)
@@ -347,6 +365,13 @@ export function BiodataBuilder() {
     Boolean(draft.horoscope.birthDate.trim()) &&
     Boolean(draft.horoscope.birthPlace.trim()) &&
     (Boolean(draft.horoscope.birthTime.trim()) || draft.horoscope.birthTimeAccuracy === "unknown-time")
+  const birthPlaceQuery = draft.horoscope.birthPlace.trim()
+  const filteredBirthPlaceSuggestions = (birthPlaceQuery
+    ? sriLankaBirthPlaceSuggestions.filter((place) =>
+        normalizeSriLankaLookupKey(place).includes(normalizeSriLankaLookupKey(birthPlaceQuery)),
+      )
+    : sriLankaBirthPlaceSuggestions
+  ).slice(0, 18)
 
   useEffect(() => {
     const backendEnabled = isFirebaseConfigured()
@@ -544,6 +569,7 @@ export function BiodataBuilder() {
     }
 
     try {
+      setBirthPlaceDirty(false)
       setChartStatus("loading")
       setChartMessage("Preparing horoscope snapshot...")
       const idToken = await user.getIdToken()
@@ -553,7 +579,7 @@ export function BiodataBuilder() {
       setChartStatus("ready")
       const lagnaMessage = result.horoscopeComputed?.lagna
         ? result.horoscopeComputed.lagna
-        : "Lagna pending a more reliable birth time"
+        : pendingLagnaLabel(result.draft)
       setChartMessage(
         result.persisted
           ? `Snapshot refreshed: ${result.horoscopeComputed?.nakath || "Nakath pending"} • ${lagnaMessage}`
@@ -572,7 +598,7 @@ export function BiodataBuilder() {
   }, [chartInputKey, draft.horoscopeComputed])
 
   useEffect(() => {
-    if (!user || !backendAvailable || chartStatus === "loading" || !chartCanAutofill) {
+    if (!user || !backendAvailable || chartStatus === "loading" || !chartCanAutofill || birthPlaceDirty) {
       return
     }
 
@@ -585,7 +611,7 @@ export function BiodataBuilder() {
     }, 700)
 
     return () => window.clearTimeout(timeoutId)
-  }, [backendAvailable, chartCanAutofill, chartInputKey, chartStatus, user])
+  }, [backendAvailable, birthPlaceDirty, chartCanAutofill, chartInputKey, chartStatus, user])
 
   function handleSelectedFile(kind: ProfileAssetKind, file: File) {
     if (!isAllowedProfileAssetFile(file)) {
@@ -1015,7 +1041,10 @@ export function BiodataBuilder() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => void refreshHoroscopeSnapshot()}
+                    onClick={() => {
+                      setBirthPlaceDirty(false)
+                      void refreshHoroscopeSnapshot()
+                    }}
                     disabled={chartStatus === "loading" || !draft.horoscope.birthDate || !draft.horoscope.birthPlace}
                     className="rounded-full border-white/10 bg-black/20 text-foreground hover:bg-white/[0.08]"
                   >
@@ -1043,7 +1072,7 @@ export function BiodataBuilder() {
                     <div className="space-y-1">
                       <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Rashi / Lagna</p>
                       <p className="text-sm font-medium text-foreground">
-                        {horoscopeSnapshot.rashi || "Rashi pending"} • {horoscopeSnapshot.lagna || "Needs reliable birth time"}
+                        {horoscopeSnapshot.rashi || "Rashi pending"} • {horoscopeSnapshot.lagna || pendingLagnaLabel(previewDraft)}
                       </p>
                     </div>
                     <div className="space-y-1">
@@ -1099,8 +1128,10 @@ export function BiodataBuilder() {
                       className="border-white/10 bg-black/20"
                     />
                   </FieldShell>
-                  <FieldShell label="Birth time" hint="Required if we want confident Porondam context later.">
+                  <FieldShell label="Birth time" hint="Use the local birth time in 24-hour format. This helps us derive Lagna more reliably.">
                     <Input
+                      type="time"
+                      step={60}
                       value={draft.horoscope.birthTime}
                       onChange={(event) =>
                         setDraft((current) => ({
@@ -1131,8 +1162,10 @@ export function BiodataBuilder() {
                   </FieldShell>
                   <FieldShell label="Birth place">
                     <Input
+                      list="birth-place-suggestions"
                       value={draft.horoscope.birthPlace}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        setBirthPlaceDirty(true)
                         setDraft((current) => ({
                           ...current,
                           horoscope: {
@@ -1145,9 +1178,29 @@ export function BiodataBuilder() {
                           },
                           horoscopeComputed: null,
                         }))
-                      }
+                      }}
+                      onBlur={() => {
+                        setBirthPlaceDirty(false)
+                      }}
+                      onFocus={() => {
+                        setBirthPlaceDirty(true)
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          setBirthPlaceDirty(false)
+                        }
+                      }}
                       className="border-white/10 bg-black/20"
                     />
+                    <datalist id="birth-place-suggestions">
+                      {filteredBirthPlaceSuggestions.map((place) => (
+                        <option key={place} value={place} />
+                      ))}
+                    </datalist>
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      Start with a Sri Lankan town or district and pick the correct place. We only resolve coordinates once the
+                      place is committed and the chart refresh runs.
+                    </p>
                   </FieldShell>
                 </div>
                 <div className="mt-5 grid gap-5 md:grid-cols-2">
@@ -1168,7 +1221,7 @@ export function BiodataBuilder() {
                   >
                     <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
                       <p className="text-sm font-medium text-foreground">
-                        {horoscopeSnapshot?.lagna || draft.horoscope.lagna || "Needs a reliable birth time"}
+                        {horoscopeSnapshot?.lagna || draft.horoscope.lagna || pendingLagnaLabel(previewDraft)}
                       </p>
                     </div>
                   </FieldShell>

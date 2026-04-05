@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
 
     const storedDraft = snapshot.exists ? draftFromProfileRecord(snapshot.data() as FirestoreProfileRecord) : mergeProfileDraft()
     const draft = mergeProfileDraft(body.draft ? { ...storedDraft, ...body.draft } : storedDraft)
-    const nextDraft = applyHoroscopeSnapshotToDraft(draft)
+    const nextDraft = await applyHoroscopeSnapshotToDraft(draft)
 
     if (!nextDraft.horoscopeComputed) {
       return NextResponse.json(
