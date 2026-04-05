@@ -84,7 +84,7 @@ function factorLabel(total: number) {
 
 function traditionalSummary(score: number, confidence: PorondamConfidence) {
   if (confidence === "low") {
-    return "Traditional fit is still a low-confidence preview because key birth details are missing or incomplete."
+    return "Traditional fit is still a low-confidence preview because the pair does not yet have strong enough chart-backed birth details."
   }
 
   if (score >= 4) {
@@ -112,6 +112,7 @@ function practicalSummary(score: number) {
 
 export function calculatePorondamPreview(reference: ProfileDraft, candidate: ProfileDraft): PorondamPreview {
   const horoscopeRules = evaluateHoroscopeRules(reference, candidate)
+  const hasComputedCharts = Boolean(reference.horoscopeComputed) && Boolean(candidate.horoscopeComputed)
 
   const candidateAge = profileAge(candidate)
   const referenceAge = profileAge(reference)
@@ -263,10 +264,16 @@ export function calculatePorondamPreview(reference: ProfileDraft, candidate: Pro
     confidence: horoscopeRules.confidence,
     confidenceNote:
       horoscopeRules.confidence === "high"
-        ? "Exact birth date, time, place, nakath, and lagna are present on both sides."
+        ? hasComputedCharts
+          ? "Both sides now have computed chart snapshots backed by exact-enough birth details."
+          : "Exact birth date, time, place, nakath, and lagna are present on both sides."
         : horoscopeRules.confidence === "medium"
-          ? "There is enough birth data for a useful preview, but the astrology side is not yet fully complete."
-          : "Treat the traditional score as tentative until more birth details are captured.",
+          ? hasComputedCharts
+            ? "The traditional preview is using at least one computed chart snapshot, but the pair still needs cleaner birth inputs for a high-confidence read."
+            : "There is enough birth data for a useful preview, but the astrology side is not yet fully complete."
+          : hasComputedCharts
+            ? "A chart snapshot exists, but treat the traditional score as tentative until both sides have more reliable birth details."
+            : "Treat the traditional score as tentative until more birth details are captured.",
     traditionalScore,
     traditionalMax,
     practicalScore,
