@@ -161,6 +161,25 @@ export const nakathOptions = [
   "Ada",
   "Punarvasu",
   "Pushya",
+  "Aslisa",
+  "Ma",
+  "Puwapal",
+  "Utrapal",
+  "Hatha",
+  "Chitra",
+  "Swathi",
+  "Visakha",
+  "Anuradha",
+  "Deta",
+  "Mula",
+  "Puwasala",
+  "Utrasala",
+  "Suwana",
+  "Denata",
+  "Siyawasa",
+  "Puwaputup",
+  "Uttraputup",
+  "Revathi",
 ]
 
 export const lagnaOptions = [
@@ -317,24 +336,15 @@ export function getHoroscopeInputConfidence(draft: ProfileDraft): HoroscopeConfi
   const hasBirthDate = draft.horoscope.birthDate.trim().length > 0
   const hasBirthPlace = draft.horoscope.birthPlace.trim().length > 0
   const hasBirthTime = draft.horoscope.birthTime.trim().length > 0
-  const hasNakath = draft.horoscope.nakath.trim().length > 0
-  const hasLagna = draft.horoscope.lagna.trim().length > 0
 
-  if (
-    hasBirthDate &&
-    hasBirthPlace &&
-    hasBirthTime &&
-    draft.horoscope.birthTimeAccuracy === "exact" &&
-    hasNakath &&
-    hasLagna
-  ) {
+  if (hasBirthDate && hasBirthPlace && hasBirthTime && draft.horoscope.birthTimeAccuracy === "exact") {
     return "high"
   }
 
   if (
     hasBirthDate &&
     hasBirthPlace &&
-    (hasBirthTime || hasNakath || hasLagna)
+    hasBirthTime
   ) {
     return "medium"
   }

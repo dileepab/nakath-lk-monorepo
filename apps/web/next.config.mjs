@@ -16,6 +16,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  serverExternalPackages: ["swisseph-v2"],
   transpilePackages: ["@acme/core", "firebase-admin"],
   images: {
     unoptimized: true,
