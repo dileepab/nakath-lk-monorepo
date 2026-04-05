@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react"
 import {
   ArrowLeft,
   ArrowUpRight,
+  Bookmark,
   CheckCircle2,
   Clock3,
   FileText,
@@ -309,6 +310,16 @@ export default function DashboardPage() {
                   <Link href="/biodata">
                     <Settings className="mr-2 h-4 w-4" />
                     Edit profile
+                  </Link>
+                </Button>
+                <Button
+                  variant="outline"
+                  asChild
+                  className="h-12 rounded-full border-white/15 bg-white/[0.04] px-6 text-base text-foreground hover:bg-white/[0.08]"
+                >
+                  <Link href="/saved">
+                    <Bookmark className="mr-2 h-4 w-4" />
+                    Saved profiles
                   </Link>
                 </Button>
                 <Button

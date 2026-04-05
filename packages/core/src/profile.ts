@@ -5,6 +5,28 @@ export type VerificationState = "not-submitted" | "submitted" | "verified"
 export type Gender = "Female" | "Male" | "Other"
 export type VerificationAsset = "nic" | "selfie"
 export type ReminderLanguage = "en" | "si" | "ta"
+export type BirthTimeAccuracy = "exact" | "approximate" | "unknown-time"
+export type HoroscopeConfidence = "low" | "medium" | "high"
+
+export interface HoroscopePlaceNormalization {
+  normalizedPlaceName: string
+  latitude: number | null
+  longitude: number | null
+  timeZone: string
+}
+
+export interface HoroscopeComputedSnapshot {
+  version: string
+  ayanamsa: string
+  confidence: HoroscopeConfidence
+  nakath: string
+  pada: string
+  rashi: string
+  lagna: string
+  moonLongitude: number | null
+  place: HoroscopePlaceNormalization
+  computedAt: number | null
+}
 
 export const PROFILE_DRAFT_STORAGE_KEY = "nakath-lk-profile-draft"
 
@@ -25,8 +47,14 @@ export interface ProfileDraft {
     nakath: string
     lagna: string
     birthTime: string
+    birthTimeAccuracy: BirthTimeAccuracy
     birthPlace: string
+    normalizedBirthPlace: string
+    birthLatitude: number | null
+    birthLongitude: number | null
+    birthTimeZone: string
   }
+  horoscopeComputed: HoroscopeComputedSnapshot | null
   family: {
     education: string
     fatherOccupation: string
@@ -102,6 +130,7 @@ export const religionOptions = [
 ]
 
 export const languageOptions = ["Sinhala", "Tamil", "English"]
+export const birthTimeAccuracyOptions: BirthTimeAccuracy[] = ["exact", "approximate", "unknown-time"]
 
 export const educationOptions = [
   "A/L qualified",
@@ -170,8 +199,14 @@ export const initialProfileDraft: ProfileDraft = {
     nakath: "",
     lagna: "",
     birthTime: "",
+    birthTimeAccuracy: "exact",
     birthPlace: "",
+    normalizedBirthPlace: "",
+    birthLatitude: null,
+    birthLongitude: null,
+    birthTimeZone: "Asia/Colombo",
   },
+  horoscopeComputed: null,
   family: {
     education: "",
     fatherOccupation: "",
@@ -234,6 +269,15 @@ export function mergeProfileDraft(candidate?: Partial<ProfileDraft> | null): Pro
       ...initialProfileDraft.horoscope,
       ...(candidate?.horoscope ?? {}),
     },
+    horoscopeComputed: candidate?.horoscopeComputed
+      ? {
+          ...candidate.horoscopeComputed,
+          place: {
+            ...initialProfileDraft.horoscopeComputed?.place,
+            ...(candidate.horoscopeComputed.place ?? {}),
+          },
+        }
+      : initialProfileDraft.horoscopeComputed,
     family: {
       ...initialProfileDraft.family,
       ...(candidate?.family ?? {}),
@@ -263,6 +307,53 @@ export function mergeProfileDraft(candidate?: Partial<ProfileDraft> | null): Pro
       ...(candidate?.media ?? {}),
     },
   }
+}
+
+export function getHoroscopeInputConfidence(draft: ProfileDraft): HoroscopeConfidence {
+  if (draft.horoscopeComputed?.confidence) {
+    return draft.horoscopeComputed.confidence
+  }
+
+  const hasBirthDate = draft.horoscope.birthDate.trim().length > 0
+  const hasBirthPlace = draft.horoscope.birthPlace.trim().length > 0
+  const hasBirthTime = draft.horoscope.birthTime.trim().length > 0
+  const hasNakath = draft.horoscope.nakath.trim().length > 0
+  const hasLagna = draft.horoscope.lagna.trim().length > 0
+
+  if (
+    hasBirthDate &&
+    hasBirthPlace &&
+    hasBirthTime &&
+    draft.horoscope.birthTimeAccuracy === "exact" &&
+    hasNakath &&
+    hasLagna
+  ) {
+    return "high"
+  }
+
+  if (
+    hasBirthDate &&
+    hasBirthPlace &&
+    (hasBirthTime || hasNakath || hasLagna)
+  ) {
+    return "medium"
+  }
+
+  return "low"
+}
+
+export function getHoroscopeInputSummary(draft: ProfileDraft) {
+  const confidence = getHoroscopeInputConfidence(draft)
+
+  if (confidence === "high") {
+    return `Birth date ${draft.horoscope.birthDate}, ${draft.horoscope.birthTime} birth time, and place details are ready for a higher-confidence Porondam pass.`
+  }
+
+  if (confidence === "medium") {
+    return "There is enough horoscope detail for an early Porondam preview, but the birth inputs still need a more precise pass."
+  }
+
+  return "Birth details still need one more pass before the traditional compatibility side can be treated confidently."
 }
 
 export function parseDateInput(value: string) {

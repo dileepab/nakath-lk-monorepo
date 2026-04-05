@@ -1,22 +1,44 @@
 import { ageFromBirthDate, getVerificationStatus, isFullyVerified, type ProfileDraft } from "./profile"
 import { evaluateHoroscopeRules } from "./horoscope-rules"
 
+export type PorondamConfidence = "low" | "medium" | "high"
+export type PorondamFactorGroup = "traditional" | "practical"
+
 export type PorondamFactor = {
   key: "horoscope" | "age" | "values" | "location" | "trust"
+  group: PorondamFactorGroup
   label: string
   score: number
   max: number
   note: string
 }
 
+export type PorondamSection = {
+  key: PorondamFactorGroup
+  label: string
+  score: number
+  max: number
+  summary: string
+}
+
 export type PorondamPreview = {
   total: number
   max: number
+  confidence: PorondamConfidence
+  confidenceNote: string
+  traditionalScore: number
+  traditionalMax: number
+  practicalScore: number
+  practicalMax: number
   astrologicalScore: number
   astrologicalMax: number
   lifestylePercentage: number
   label: string
   summary: string
+  sections: {
+    traditional: PorondamSection
+    practical: PorondamSection
+  }
   factors: PorondamFactor[]
 }
 
@@ -58,6 +80,34 @@ function factorLabel(total: number) {
   if (total >= 13) return "Promising preview"
   if (total >= 9) return "Possible fit"
   return "Early-stage fit"
+}
+
+function traditionalSummary(score: number, confidence: PorondamConfidence) {
+  if (confidence === "low") {
+    return "Traditional fit is still a low-confidence preview because key birth details are missing or incomplete."
+  }
+
+  if (score >= 4) {
+    return "Traditional astrology inputs are aligning well in this launch-stage rule set."
+  }
+
+  if (score >= 2) {
+    return "Traditional signals show some compatibility, but they are not strong enough to stand alone yet."
+  }
+
+  return "Traditional factors are currently mixed, so this match needs more context beyond astrology alone."
+}
+
+function practicalSummary(score: number) {
+  if (score >= 11) {
+    return "Practical fit looks strong across preferences, location plans, and trust readiness."
+  }
+
+  if (score >= 7) {
+    return "Practical fit is encouraging, but there are still a few areas that should be discussed carefully."
+  }
+
+  return "Practical fit still looks early-stage, so this match would benefit from slower review and more conversation."
 }
 
 export function calculatePorondamPreview(reference: ProfileDraft, candidate: ProfileDraft): PorondamPreview {
@@ -117,6 +167,7 @@ export function calculatePorondamPreview(reference: ProfileDraft, candidate: Pro
   const factors: PorondamFactor[] = [
     {
       key: "horoscope",
+      group: "traditional",
       label: "Horoscope rules",
       score: horoscopeRules.score,
       max: 5,
@@ -124,6 +175,7 @@ export function calculatePorondamPreview(reference: ProfileDraft, candidate: Pro
     },
     {
       key: "age",
+      group: "practical",
       label: "Age fit",
       score: ageScore,
       max: 4,
@@ -136,6 +188,7 @@ export function calculatePorondamPreview(reference: ProfileDraft, candidate: Pro
     },
     {
       key: "values",
+      group: "practical",
       label: "Values and lifestyle",
       score: valuesScore,
       max: 4,
@@ -148,6 +201,7 @@ export function calculatePorondamPreview(reference: ProfileDraft, candidate: Pro
     },
     {
       key: "location",
+      group: "practical",
       label: "Location and future plans",
       score: locationScore,
       max: 4,
@@ -160,6 +214,7 @@ export function calculatePorondamPreview(reference: ProfileDraft, candidate: Pro
     },
     {
       key: "trust",
+      group: "practical",
       label: "Trust readiness",
       score: trustScore,
       max: 3,
@@ -173,6 +228,10 @@ export function calculatePorondamPreview(reference: ProfileDraft, candidate: Pro
   ]
 
   const total = factors.reduce((sum, factor) => sum + factor.score, 0)
+  const traditionalScore = horoscopeRules.score
+  const traditionalMax = horoscopeRules.max
+  const practicalScore = ageScore + valuesScore + locationScore + trustScore
+  const practicalMax = 15
 
   // Calculate Lifestyle Alignment
   let lifestylePoints = 0
@@ -201,6 +260,17 @@ export function calculatePorondamPreview(reference: ProfileDraft, candidate: Pro
   return {
     total,
     max: 20,
+    confidence: horoscopeRules.confidence,
+    confidenceNote:
+      horoscopeRules.confidence === "high"
+        ? "Exact birth date, time, place, nakath, and lagna are present on both sides."
+        : horoscopeRules.confidence === "medium"
+          ? "There is enough birth data for a useful preview, but the astrology side is not yet fully complete."
+          : "Treat the traditional score as tentative until more birth details are captured.",
+    traditionalScore,
+    traditionalMax,
+    practicalScore,
+    practicalMax,
     astrologicalScore: horoscopeRules.score,
     astrologicalMax: 5,
     lifestylePercentage,
@@ -213,6 +283,22 @@ export function calculatePorondamPreview(reference: ProfileDraft, candidate: Pro
         : total >= 9
             ? "There is some compatibility here, but the match still needs more context."
             : "This looks early-stage and would need more alignment before moving forward.",
+    sections: {
+      traditional: {
+        key: "traditional",
+        label: "Traditional fit",
+        score: traditionalScore,
+        max: traditionalMax,
+        summary: traditionalSummary(traditionalScore, horoscopeRules.confidence),
+      },
+      practical: {
+        key: "practical",
+        label: "Practical fit",
+        score: practicalScore,
+        max: practicalMax,
+        summary: practicalSummary(practicalScore),
+      },
+    },
     factors,
   }
 }

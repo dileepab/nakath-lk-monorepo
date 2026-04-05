@@ -1,15 +1,17 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Send, LoaderCircle, Sparkles, Video, PhoneOff } from "lucide-react"
+import { Send, LoaderCircle, Sparkles, Video, PhoneOff, MessageSquareHeart, ArrowLeft } from "lucide-react"
 
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/components/auth-provider"
-import { type MatchRequest, type ChatMessage } from "@acme/core"
-import { subscribeToMessages, sendMessage } from "@/lib/chat-api"
+import { type MatchRequest, type ChatMessage, type ProfileDraft } from "@acme/core"
+import { markMatchRead, subscribeToMatch, subscribeToMessages, sendMessage } from "@/lib/chat-api"
+import { buildGuidedFollowUps, shouldShowGuidedFollowUps } from "@/lib/chat-followups"
+import { buildGuidedStarters } from "@/lib/chat-starters"
 
 /**
  * MOCK LiveKit components so the frontend compiles even if the full setup isn't done.
@@ -73,20 +75,32 @@ export function ChatWindow({
   activeMatch,
   currentUserId,
   otherDisplayName,
+  otherProfile,
+  onBack,
 }: {
   activeMatch: MatchRequest
   currentUserId: string
   otherDisplayName?: string
+  otherProfile?: ProfileDraft | null
+  onBack?: () => void
 }) {
   const { user } = useAuth()
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [matchState, setMatchState] = useState<MatchRequest>(activeMatch)
   const [inputText, setInputText] = useState("")
   
   const [loadingIcebreakers, setLoadingIcebreakers] = useState(false)
   const [icebreakers, setIcebreakers] = useState<string[]>([])
+  const [icebreakerError, setIcebreakerError] = useState<string | null>(null)
   const [videoActive, setVideoActive] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const lastReadRequestRef = useRef(0)
+  const guidedStarters = useMemo(() => buildGuidedStarters(otherProfile), [otherProfile])
+  const guidedFollowUps = useMemo(
+    () => buildGuidedFollowUps(otherProfile, messages, currentUserId),
+    [currentUserId, messages, otherProfile],
+  )
 
   useEffect(() => {
     const unsubscribe = subscribeToMessages(activeMatch.id, (msgs) => {
@@ -96,24 +110,76 @@ export function ChatWindow({
   }, [activeMatch.id])
 
   useEffect(() => {
+    setMatchState(activeMatch)
+    const unsubscribe = subscribeToMatch(activeMatch.id, (match) => {
+      if (match) {
+        setMatchState(match)
+      }
+    })
+    return () => unsubscribe()
+  }, [activeMatch])
+
+  useEffect(() => {
+    setIcebreakers([])
+    setIcebreakerError(null)
+    setInputText("")
+    lastReadRequestRef.current = 0
+  }, [activeMatch.id])
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  const handleSend = async (e: React.FormEvent, manualText?: string) => {
-    e?.preventDefault()
+  const otherUserId = currentUserId === matchState.senderId ? matchState.receiverId : matchState.senderId
+  const myReadAt = matchState.readStates?.[currentUserId]?.lastReadAt ?? 0
+  const otherReadAt = matchState.readStates?.[otherUserId]?.lastReadAt ?? 0
+  const latestOutgoingMessageId = [...messages].reverse().find((message) => message.senderId === currentUserId)?.id ?? null
+
+  useEffect(() => {
+    if (!user || messages.length === 0) return
+
+    const latestIncomingAt =
+      [...messages].reverse().find((message) => message.senderId !== currentUserId)?.createdAt ?? null
+
+    if (!latestIncomingAt) return
+
+    const effectiveReadAt = Math.max(myReadAt, lastReadRequestRef.current)
+    if (latestIncomingAt <= effectiveReadAt) return
+
+    lastReadRequestRef.current = latestIncomingAt
+
+    void user
+      .getIdToken()
+      .then((idToken) => markMatchRead(idToken, activeMatch.id, latestIncomingAt))
+      .catch(() => {
+        lastReadRequestRef.current = myReadAt
+      })
+  }, [activeMatch.id, currentUserId, messages, myReadAt, user])
+
+  const submitMessage = async (manualText?: string) => {
     const textToSend = manualText || inputText
     if (!textToSend.trim() || !user) return
     
     setInputText("")
-    setIcebreakers([]) // clear suggestions once they speak
+    setIcebreakers([])
     const idToken = await user.getIdToken()
     await sendMessage(idToken, activeMatch.id, textToSend)
+  }
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await submitMessage()
+  }
+
+  function handleUseStarter(text: string) {
+    setInputText(text)
   }
 
   const generateIcebreakers = async () => {
     if (!user) return
 
     setLoadingIcebreakers(true)
+    setIcebreakerError(null)
     try {
       const idToken = await user.getIdToken()
       const res = await fetch("/api/chat/icebreakers", {
@@ -135,13 +201,15 @@ export function ChatWindow({
       }
     } catch (e) {
       console.error(e)
+      setIcebreakerError("Tailored starters are unavailable right now. You can still use the guided starters below.")
     } finally {
       setLoadingIcebreakers(false)
     }
   }
 
-  const isOtherUser = currentUserId === activeMatch.senderId ? activeMatch.receiverId : activeMatch.senderId
   const chatTitle = otherDisplayName || "your match"
+  const showGuidedStart = messages.length === 0
+  const showGuidedFollowUps = shouldShowGuidedFollowUps(messages, currentUserId)
 
   return (
     <motion.div 
@@ -150,16 +218,28 @@ export function ChatWindow({
       animate={{ opacity: 1, x: 0 }}
       className="flex-1 min-h-0 flex flex-col lg:flex-row shadow-[0_28px_90px_rgba(0,0,0,0.28)]"
     >
-      <Card className="flex-1 flex flex-col border-white/10 bg-[#121214]/90 backdrop-blur-xl overflow-hidden rounded-r-none lg:rounded-r-2xl border-r-0 lg:border-r">
+      <Card className="flex-1 flex min-h-0 flex-col overflow-hidden border-white/10 bg-[#121214]/90 backdrop-blur-xl lg:rounded-2xl">
         {/* Header */}
         <div className="p-5 border-b border-white/10 flex items-center justify-between shrink-0 bg-black/40">
-          <div>
+          <div className="flex items-center gap-3">
+            {onBack ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={onBack}
+                className="h-10 w-10 rounded-full border border-white/10 bg-white/[0.04] p-0 text-foreground hover:bg-white/[0.08] lg:hidden"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            ) : null}
+            <div>
             <h3 className="font-semibold text-foreground">
               Chatting with {chatTitle}
             </h3>
             <p className="text-xs text-primary mt-1 flex items-center gap-1">
               Encrypted Connection
             </p>
+            </div>
           </div>
           {!videoActive && (
             <Button 
@@ -177,6 +257,9 @@ export function ChatWindow({
           <AnimatePresence>
             {messages.map(msg => {
               const isMe = msg.senderId === currentUserId
+              const isLatestOutgoingMessage = msg.id === latestOutgoingMessageId
+              const showSeenState = isMe && isLatestOutgoingMessage
+              const isSeen = showSeenState && otherReadAt >= msg.createdAt
               return (
                 <motion.div 
                   key={msg.id}
@@ -184,10 +267,17 @@ export function ChatWindow({
                   animate={{ opacity: 1, y: 0 }}
                   className={`flex ${isMe ? "justify-end" : "justify-start"}`}
                 >
-                  <div className={`max-w-[85%] lg:max-w-[75%] px-4 py-3 rounded-2xl ${
-                    isMe ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-white/[0.08] text-foreground rounded-tl-sm border border-white/10"
-                  }`}>
-                    <p className="text-sm leading-relaxed">{msg.text}</p>
+                  <div>
+                    <div className={`max-w-[85%] lg:max-w-[75%] px-4 py-3 rounded-2xl ${
+                      isMe ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-white/[0.08] text-foreground rounded-tl-sm border border-white/10"
+                    }`}>
+                      <p className="text-sm leading-relaxed">{msg.text}</p>
+                    </div>
+                    {showSeenState ? (
+                      <p className="mt-2 px-2 text-right text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                        {isSeen ? "Seen" : "Delivered"}
+                      </p>
+                    ) : null}
                   </div>
                 </motion.div>
               )
@@ -196,52 +286,133 @@ export function ChatWindow({
           <div ref={messagesEndRef} />
         </div>
         
-        {/* Icebreakers injection (Only if chat is absolutely empty) */}
-        {messages.length === 0 && icebreakers.length === 0 && !loadingIcebreakers && (
-           <div className="px-5 pb-2">
-              <Button 
-                onClick={generateIcebreakers} 
-                variant="outline" 
-                className="w-full rounded-2xl h-12 border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary border-dashed font-medium"
-              >
-                 <Sparkles className="h-4 w-4 mr-2" /> Generate Auspicious Icebreakers
-              </Button>
-           </div>
-        )}
+        {showGuidedStart ? (
+          <div className="border-t border-white/10 bg-black/30 px-5 py-4">
+            <div className="rounded-3xl border border-primary/15 bg-primary/8 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <MessageSquareHeart className="h-4 w-4 text-primary" />
+                    <p className="text-sm font-semibold text-foreground">Guided first message</p>
+                  </div>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+                    A short, respectful hello usually works best for the first step. Pick a starter below and adjust it before you send.
+                  </p>
+                </div>
 
-        {loadingIcebreakers && (
-           <div className="px-5 pb-4 flex justify-center">
-              <p className="text-sm text-muted-foreground flex items-center gap-2">
-                 <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
-                 Analyzing profiles for commonalities...
-              </p>
-           </div>
-        )}
-
-        {icebreakers.length > 0 && messages.length === 0 && (
-           <div className="px-5 pb-4 grid gap-2">
-              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1 ml-1">AI Suggestions</p>
-              {icebreakers.map((ib, i) => (
-                <motion.button 
-                  key={i} 
-                  initial={{opacity:0, y:5}} animate={{opacity:1, y:0}} transition={{delay: i * 0.1}}
-                  onClick={() => handleSend(null as any, ib)}
-                  className="text-left p-3 rounded-2xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] text-sm text-foreground/90 leading-relaxed transition-all"
+                <Button
+                  onClick={generateIcebreakers}
+                  variant="outline"
+                  disabled={loadingIcebreakers}
+                  className="rounded-full border-primary/30 bg-primary/10 text-primary hover:bg-primary/20"
                 >
-                  {ib}
-                </motion.button>
-              ))}
-           </div>
-        )}
+                  {loadingIcebreakers ? (
+                    <>
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                      Thinking...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Generate tailored starters
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                {guidedStarters.map((starter) => (
+                  <button
+                    key={starter.id}
+                    type="button"
+                    onClick={() => handleUseStarter(starter.text)}
+                    className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 text-left transition-colors hover:bg-white/[0.07]"
+                  >
+                    <p className="text-sm font-semibold text-foreground">{starter.label}</p>
+                    <p className="mt-2 text-xs uppercase tracking-[0.22em] text-primary">{starter.description}</p>
+                    <p className="mt-3 text-sm leading-6 text-muted-foreground">{starter.text}</p>
+                  </button>
+                ))}
+              </div>
+
+              {loadingIcebreakers ? (
+                <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+                  <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
+                  Analyzing both profiles for a few more tailored openers...
+                </div>
+              ) : null}
+
+              {icebreakerError ? (
+                <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm leading-6 text-amber-100">
+                  {icebreakerError}
+                </div>
+              ) : null}
+
+              {icebreakers.length > 0 ? (
+                <div className="mt-5 grid gap-2">
+                  <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Tailored suggestions</p>
+                  {icebreakers.map((icebreaker, index) => (
+                    <motion.button
+                      key={`${icebreaker}-${index}`}
+                      type="button"
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.08 }}
+                      onClick={() => handleUseStarter(icebreaker)}
+                      className="rounded-2xl border border-white/10 bg-black/20 p-3 text-left text-sm leading-relaxed text-foreground/90 transition-colors hover:bg-white/[0.06]"
+                    >
+                      {icebreaker}
+                    </motion.button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {showGuidedFollowUps ? (
+          <div className="border-t border-white/10 bg-black/25 px-5 py-4">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex items-center gap-2">
+                <MessageSquareHeart className="h-4 w-4 text-primary" />
+                <p className="text-sm font-semibold text-foreground">What to ask next</p>
+              </div>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+                The conversation is moving. Here are a few gentle follow-ups you can use or edit before sending.
+              </p>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                {guidedFollowUps.map((followUp) => (
+                  <button
+                    key={followUp.id}
+                    type="button"
+                    onClick={() => handleUseStarter(followUp.text)}
+                    className="rounded-3xl border border-white/10 bg-black/20 p-4 text-left transition-colors hover:bg-white/[0.06]"
+                  >
+                    <p className="text-sm font-semibold text-foreground">{followUp.label}</p>
+                    <p className="mt-2 text-xs uppercase tracking-[0.22em] text-primary">{followUp.description}</p>
+                    <p className="mt-3 text-sm leading-6 text-muted-foreground">{followUp.text}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {/* Input Box */}
         <div className="p-4 bg-black/40 border-t border-white/10 shrink-0">
-          <form onSubmit={handleSend} className="flex items-center gap-3">
-            <Input 
+          <form onSubmit={handleSend} className="flex items-end gap-3">
+            <Textarea
               value={inputText}
-              onChange={e => setInputText(e.target.value)}
-              placeholder="Type a message..."
-              className="bg-white/[0.05] border-white/10 h-12 rounded-full px-5"
+              onChange={(event) => setInputText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault()
+                  void submitMessage()
+                }
+              }}
+              placeholder={showGuidedStart ? "Pick a starter above or write your own first message..." : "Type a message..."}
+              className="min-h-12 rounded-3xl border-white/10 bg-white/[0.05] px-4 py-3 text-sm"
             />
             <Button type="submit" disabled={!inputText.trim()} className="h-12 w-12 rounded-full p-0 shrink-0 bg-primary hover:bg-primary/90 text-primary-foreground">
               <Send className="h-5 w-5 ml-1" />

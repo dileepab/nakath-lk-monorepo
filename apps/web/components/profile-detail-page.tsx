@@ -18,7 +18,11 @@ import {
 
 import { useAuth } from "@/components/auth-provider"
 import { AstrologyBackground } from "@/components/astrology-background"
+import { FamilyShareLinkManager } from "@/components/family-share-link-manager"
 import { ProfilePhotoCard } from "@/components/profile-photo-card"
+import { BiodataSharePanel } from "@/components/biodata-share-panel"
+import { ShortlistNotesPanel } from "@/components/shortlist-notes-panel"
+import { ShortlistToggleButton } from "@/components/shortlist-toggle-button"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -35,6 +39,14 @@ import {
   loadPublicProfileDraftFromBackend,
   loadOwnProfileDraftFromBackend,
 } from "@/lib/profile-store"
+import {
+  listShortlistEntries,
+  removeProfileFromShortlist,
+  saveProfileToShortlist,
+  updateShortlistEntry,
+  type ShortlistEntry,
+  type ShortlistNoteTag,
+} from "@/lib/shortlist-store"
 import { getReceivedMatches, getSentMatches, sendMatchRequest } from "@/lib/match-api"
 import { cn } from "@/lib/utils"
 
@@ -140,6 +152,8 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
   const [relationship, setRelationship] = useState<RelationshipState | null>(null)
   const [contactReveal, setContactReveal] = useState<ContactReveal | null>(null)
   const [loadingContact, setLoadingContact] = useState(false)
+  const [shortlistEntry, setShortlistEntry] = useState<ShortlistEntry | null>(null)
+  const [savingShortlist, setSavingShortlist] = useState(false)
 
   const handleRequest = async () => {
     if (!user || !profile || profile.source === "current-user") return
@@ -288,14 +302,79 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
     }
   }, [authLoading, profileId, user])
 
+  useEffect(() => {
+    if (!user || profileId === "me" || !isFirebaseConfigured()) {
+      setShortlistEntry(null)
+      return
+    }
+
+    let cancelled = false
+
+    void listShortlistEntries(user.uid)
+      .then((entries) => {
+        if (!cancelled) {
+          setShortlistEntry(entries.find((entry) => entry.profileId === profileId) ?? null)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setShortlistEntry(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [profileId, user])
+
   const displayName = useMemo(() => {
     if (!profile) return ""
     return `${profile.draft.basics.firstName} ${profile.draft.basics.lastName}`.trim()
   }, [profile])
+  const isShortlisted = Boolean(shortlistEntry)
   const isUnlocked = relationship?.status === "approved"
   const hasPendingIncoming = relationship?.status === "pending" && relationship.direction === "incoming"
   const hasPendingOutgoing = relationship?.status === "pending" && relationship.direction === "outgoing"
   const chatHref = relationship?.matchId ? `/messages?matchId=${relationship.matchId}` : "/messages"
+
+  async function handleToggleShortlist() {
+    if (!user || !profile || profile.source === "current-user") return
+
+    setSavingShortlist(true)
+
+    try {
+      if (isShortlisted) {
+        await removeProfileFromShortlist(user.uid, profile.id)
+        setShortlistEntry(null)
+      } else {
+        await saveProfileToShortlist(user.uid, profile.id)
+        const now = Date.now()
+        setShortlistEntry({
+          profileId: profile.id,
+          savedAt: now,
+          updatedAt: now,
+          note: "",
+          tags: [],
+        })
+      }
+    } finally {
+      setSavingShortlist(false)
+    }
+  }
+
+  async function handleSaveShortlistNotes(next: { note: string; tags: ShortlistNoteTag[] }) {
+    if (!user || !profile || !shortlistEntry) {
+      throw new Error("Save this profile first, then add private notes.")
+    }
+
+    await updateShortlistEntry(user.uid, profile.id, next)
+    setShortlistEntry({
+      ...shortlistEntry,
+      note: next.note,
+      tags: next.tags,
+      updatedAt: Date.now(),
+    })
+  }
 
   useEffect(() => {
     if (!user || !profile || !isUnlocked || !relationship?.matchId || profile.source === "current-user") {
@@ -547,6 +626,15 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                     <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] px-3 py-1 text-foreground">
                       {verified ? "Verified profile" : "Verification in progress"}
                     </Badge>
+                    {shortlistEntry?.tags.map((tag) => (
+                      <Badge
+                        key={tag}
+                        variant="outline"
+                        className="rounded-full border-primary/25 bg-primary/10 px-3 py-1 text-primary"
+                      >
+                        {tag}
+                      </Badge>
+                    ))}
                   </div>
                 </CardHeader>
 
@@ -590,6 +678,11 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                       </>
                     ) : (
                       <>
+                        <ShortlistToggleButton
+                          saved={isShortlisted}
+                          loading={savingShortlist}
+                          onClick={handleToggleShortlist}
+                        />
                         {isUnlocked ? (
                           <>
                             <Button asChild className="h-11 rounded-full bg-primary px-5 font-semibold text-primary-foreground hover:bg-primary/90">
@@ -648,6 +741,36 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                       </>
                     )}
                   </div>
+
+                  <BiodataSharePanel
+                    draft={draft}
+                    compact
+                    documentHref={profile.source === "current-user" ? "/biodata/document" : undefined}
+                    title={
+                      profile.source === "current-user"
+                        ? "Share your biodata"
+                        : "Share this profile with family"
+                    }
+                    description=""
+                  />
+
+                  {profile.source === "current-user" ? <FamilyShareLinkManager draft={draft} /> : null}
+
+                  {profile.source !== "current-user" && shortlistEntry ? (
+                    <ShortlistNotesPanel
+                      entry={shortlistEntry}
+                      onSave={handleSaveShortlistNotes}
+                    />
+                  ) : null}
+
+                  {profile.source !== "current-user" && !shortlistEntry ? (
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-5">
+                      <p className="text-sm font-semibold text-foreground">Private family notes</p>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                        Save this profile first if you want to keep private family feedback, follow-up notes, or quick tags for later.
+                      </p>
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
 
@@ -672,21 +795,68 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                       <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-4">
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <p className="text-sm font-semibold text-foreground">{preview?.label}</p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-semibold text-foreground">{preview?.label}</p>
+                              {preview ? (
+                                <Badge
+                                  variant="outline"
+                                  className="rounded-full border-white/10 bg-black/20 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-foreground"
+                                >
+                                  {preview.confidence} confidence
+                                </Badge>
+                              ) : null}
+                            </div>
                             <p className="mt-2 text-sm leading-6 text-foreground/85">{preview?.summary}</p>
+                            {preview ? (
+                              <p className="mt-3 text-xs leading-6 text-muted-foreground">{preview.confidenceNote}</p>
+                            ) : null}
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-right">
-                            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Score</p>
+                            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Overall fit</p>
                             <p className="mt-2 text-2xl font-semibold text-primary">{preview?.total ?? 0}/20</p>
                           </div>
                         </div>
                       </div>
+                      {preview ? (
+                        <div className="grid gap-3 lg:grid-cols-2">
+                          <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-medium text-foreground">{preview.sections.traditional.label}</p>
+                              <span className="text-xs uppercase tracking-[0.2em] text-primary">
+                                {preview.sections.traditional.score}/{preview.sections.traditional.max}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                              {preview.sections.traditional.summary}
+                            </p>
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-medium text-foreground">{preview.sections.practical.label}</p>
+                              <span className="text-xs uppercase tracking-[0.2em] text-primary">
+                                {preview.sections.practical.score}/{preview.sections.practical.max}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                              {preview.sections.practical.summary}
+                            </p>
+                            <p className="mt-3 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                              Lifestyle alignment {preview.lifestylePercentage}%
+                            </p>
+                          </div>
+                        </div>
+                      ) : null}
                       <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">{referenceLabel}</p>
                       <div className="grid gap-3">
                         {preview?.factors.map((factor) => (
                           <div key={factor.key} className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
                             <div className="flex items-center justify-between gap-3">
-                              <p className="text-sm font-medium text-foreground">{factor.label}</p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-sm font-medium text-foreground">{factor.label}</p>
+                                <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                                  {factor.group}
+                                </span>
+                              </div>
                               <span className="text-xs uppercase tracking-[0.2em] text-primary">
                                 {factor.score}/{factor.max}
                               </span>
@@ -707,7 +877,12 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                     items={[
                       { label: "Birth date", value: draft.horoscope.birthDate },
                       { label: "Birth time", value: draft.horoscope.birthTime },
+                      { label: "Birth time accuracy", value: draft.horoscope.birthTimeAccuracy.replace("-", " ") },
                       { label: "Birth place", value: draft.horoscope.birthPlace },
+                      {
+                        label: "Normalized place",
+                        value: draft.horoscope.normalizedBirthPlace || "Pending normalization",
+                      },
                       { label: "Nakath / Lagna", value: `${draft.horoscope.nakath} • ${draft.horoscope.lagna}` },
                     ]}
                   />
