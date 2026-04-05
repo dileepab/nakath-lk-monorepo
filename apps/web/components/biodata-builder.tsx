@@ -337,6 +337,7 @@ export function BiodataBuilder() {
   const [chartStatus, setChartStatus] = useState<"idle" | "loading" | "ready" | "error">("idle")
   const [chartMessage, setChartMessage] = useState("Normalize the birth place and prepare the future horoscope snapshot.")
   const previewDraft = useDeferredValue(draft)
+  const horoscopeSnapshot = previewDraft.horoscopeComputed
 
   useEffect(() => {
     const backendEnabled = isFirebaseConfigured()
@@ -542,8 +543,8 @@ export function BiodataBuilder() {
       setChartStatus("ready")
       setChartMessage(
         result.persisted
-          ? "Horoscope snapshot refreshed and saved to your profile."
-          : "Horoscope snapshot prepared locally. Save the profile when you are ready.",
+          ? `Snapshot refreshed: ${result.horoscopeComputed?.nakath || "Nakath pending"} • ${result.horoscopeComputed?.lagna || "Lagna pending"}`
+          : `Snapshot prepared locally: ${result.horoscopeComputed?.nakath || "Nakath pending"} • ${result.horoscopeComputed?.lagna || "Lagna pending"}`,
       )
     } catch (error) {
       setChartStatus("error")
@@ -996,6 +997,49 @@ export function BiodataBuilder() {
                     )}
                   </Button>
                 </div>
+                {horoscopeSnapshot ? (
+                  <div className="mb-5 grid gap-3 rounded-2xl border border-primary/15 bg-primary/8 p-4 md:grid-cols-3">
+                    <div className="space-y-1">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Nakath</p>
+                      <p className="text-sm font-medium text-foreground">
+                        {horoscopeSnapshot.nakath} {horoscopeSnapshot.pada ? `• Pada ${horoscopeSnapshot.pada}` : ""}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Rashi / Lagna</p>
+                      <p className="text-sm font-medium text-foreground">
+                        {horoscopeSnapshot.rashi || "Rashi pending"} • {horoscopeSnapshot.lagna || "Needs reliable birth time"}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Confidence</p>
+                      <p className="text-sm font-medium capitalize text-foreground">{horoscopeSnapshot.confidence}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Ayanamsa</p>
+                      <p className="text-sm font-medium text-foreground">{horoscopeSnapshot.ayanamsa}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Moon longitude</p>
+                      <p className="text-sm font-medium text-foreground">
+                        {typeof horoscopeSnapshot.moonLongitude === "number"
+                          ? `${horoscopeSnapshot.moonLongitude.toFixed(4)}°`
+                          : "Pending"}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">Snapshot updated</p>
+                      <p className="text-sm font-medium text-foreground">
+                        {horoscopeSnapshot.computedAt
+                          ? new Date(horoscopeSnapshot.computedAt).toLocaleString("en-LK", {
+                              dateStyle: "medium",
+                              timeStyle: "short",
+                            })
+                          : "Pending"}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="grid gap-5 md:grid-cols-2">
                   <FieldShell label="Nakath">
                     <SelectField

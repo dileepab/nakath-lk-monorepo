@@ -883,7 +883,26 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                         label: "Normalized place",
                         value: draft.horoscope.normalizedBirthPlace || "Pending normalization",
                       },
-                      { label: "Nakath / Lagna", value: `${draft.horoscope.nakath} • ${draft.horoscope.lagna}` },
+                      {
+                        label: "Nakath / Pada",
+                        value: draft.horoscopeComputed
+                          ? `${draft.horoscopeComputed.nakath} • Pada ${draft.horoscopeComputed.pada || "pending"}`
+                          : `${draft.horoscope.nakath} • Pending snapshot`,
+                      },
+                      {
+                        label: "Rashi / Lagna",
+                        value: draft.horoscopeComputed
+                          ? `${draft.horoscopeComputed.rashi || "Rashi pending"} • ${draft.horoscopeComputed.lagna || "Needs reliable birth time"}`
+                          : `${draft.horoscope.lagna || "Lagna pending"} • Snapshot not refreshed`,
+                      },
+                      {
+                        label: "Snapshot confidence",
+                        value: draft.horoscopeComputed?.confidence || "Pending snapshot",
+                      },
+                      {
+                        label: "Ayanamsa",
+                        value: draft.horoscopeComputed?.ayanamsa || "Pending snapshot",
+                      },
                     ]}
                   />
                 </DetailSection>

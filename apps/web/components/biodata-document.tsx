@@ -158,9 +158,20 @@ export function BiodataDocument({ draft }: { draft: ProfileDraft }) {
           <DetailGrid
             items={[
               { label: "Nakath", value: draft.horoscope.nakath },
-              { label: "Lagna", value: draft.horoscope.lagna },
+              {
+                label: "Pada / Rashi",
+                value: draft.horoscopeComputed
+                  ? `Pada ${draft.horoscopeComputed.pada || "pending"} • ${draft.horoscopeComputed.rashi || "Rashi pending"}`
+                  : "Refresh chart snapshot to compute these details.",
+              },
+              { label: "Lagna", value: draft.horoscopeComputed?.lagna || draft.horoscope.lagna || "Pending snapshot" },
               { label: "Birth time", value: draft.horoscope.birthTime },
-              { label: "Porondam readiness", value: "Birth date, time, and place are captured for scoring." },
+              {
+                label: "Porondam readiness",
+                value: draft.horoscopeComputed
+                  ? `${draft.horoscopeComputed.confidence} confidence • ${draft.horoscopeComputed.ayanamsa}`
+                  : "Birth date, time, and place are captured for scoring.",
+              },
             ]}
           />
         </Section>
