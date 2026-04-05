@@ -67,6 +67,7 @@ import {
   loadOwnProfileDraftFromBackend,
   saveProfileDraftToBackend,
 } from "@/lib/profile-store"
+import { generateHoroscopeChartSnapshot } from "@/lib/astrology-api"
 import { useBiodataStore } from "@/lib/use-biodata-store"
 import { useResolvedMediaUrl } from "@/lib/use-resolved-media-url"
 import {
@@ -333,6 +334,8 @@ export function BiodataBuilder() {
   const [uploadingAsset, setUploadingAsset] = useState<ProfileAssetKind | null>(null)
   const [pendingEditorUpload, setPendingEditorUpload] = useState<{ kind: ProfileAssetKind; file: File } | null>(null)
   const [uploadMessage, setUploadMessage] = useState("Upload profile media after signing in to start the verification path.")
+  const [chartStatus, setChartStatus] = useState<"idle" | "loading" | "ready" | "error">("idle")
+  const [chartMessage, setChartMessage] = useState("Normalize the birth place and prepare the future horoscope snapshot.")
   const previewDraft = useDeferredValue(draft)
 
   useEffect(() => {
@@ -521,6 +524,30 @@ export function BiodataBuilder() {
       setUploadMessage(`Only ${allowedProfileAssetTypesLabel()} images are allowed.`)
     } finally {
       setUploadingAsset(null)
+    }
+  }
+
+  async function refreshHoroscopeSnapshot() {
+    if (!user) {
+      router.push(`/auth?redirectTo=${encodeURIComponent("/biodata")}`)
+      return
+    }
+
+    try {
+      setChartStatus("loading")
+      setChartMessage("Preparing horoscope snapshot...")
+      const idToken = await user.getIdToken()
+      const result = await generateHoroscopeChartSnapshot(idToken, draft)
+      setDraft(result.draft)
+      setChartStatus("ready")
+      setChartMessage(
+        result.persisted
+          ? "Horoscope snapshot refreshed and saved to your profile."
+          : "Horoscope snapshot prepared locally. Save the profile when you are ready.",
+      )
+    } catch (error) {
+      setChartStatus("error")
+      setChartMessage(error instanceof Error ? error.message : "Could not prepare horoscope snapshot.")
     }
   }
 
@@ -939,6 +966,36 @@ export function BiodataBuilder() {
                 title="Porondam-ready profile details"
                 description="These are the fields we will later feed into compatibility scoring and auspicious-timing features."
               >
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-4">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Chart snapshot status</p>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{chartMessage}</p>
+                    {draft.horoscope.normalizedBirthPlace ? (
+                      <p className="mt-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                        Normalized place: {draft.horoscope.normalizedBirthPlace}
+                      </p>
+                    ) : null}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void refreshHoroscopeSnapshot()}
+                    disabled={chartStatus === "loading" || !draft.horoscope.birthDate || !draft.horoscope.birthPlace}
+                    className="rounded-full border-white/10 bg-black/20 text-foreground hover:bg-white/[0.08]"
+                  >
+                    {chartStatus === "loading" ? (
+                      <>
+                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                        Preparing snapshot
+                      </>
+                    ) : (
+                      <>
+                        <Database className="h-4 w-4" />
+                        Refresh chart snapshot
+                      </>
+                    )}
+                  </Button>
+                </div>
                 <div className="grid gap-5 md:grid-cols-2">
                   <FieldShell label="Nakath">
                     <SelectField

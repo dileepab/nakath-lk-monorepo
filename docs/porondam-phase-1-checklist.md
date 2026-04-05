@@ -67,6 +67,9 @@ Avoid presenting the current result as a final astrology verdict.
 - profile detail UI updated
 - browse-card summary updated
 - reviewer comparison UI updated
+- profile model now includes birth-time accuracy and computed horoscope snapshot placeholders
+- place-normalization fields are stored with the profile draft
+- authenticated placeholder chart route added at `/api/astrology/chart`
 
 ## Remaining Phase 1 Tasks
 
