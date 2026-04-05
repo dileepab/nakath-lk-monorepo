@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useDeferredValue, useEffect, useState } from "react"
+import { useDeferredValue, useEffect, useRef, useState } from "react"
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -37,9 +37,7 @@ import {
   educationOptions,
   genderOptions,
   initialProfileDraft,
-  lagnaOptions,
   languageOptions,
-  nakathOptions,
   professionOptions,
   religionOptions,
   siblingOptions,
@@ -338,6 +336,17 @@ export function BiodataBuilder() {
   const [chartMessage, setChartMessage] = useState("Normalize the birth place and prepare the future horoscope snapshot.")
   const previewDraft = useDeferredValue(draft)
   const horoscopeSnapshot = previewDraft.horoscopeComputed
+  const lastChartSnapshotKeyRef = useRef<string | null>(null)
+  const chartInputKey = [
+    draft.horoscope.birthDate.trim(),
+    draft.horoscope.birthTime.trim(),
+    draft.horoscope.birthTimeAccuracy,
+    draft.horoscope.birthPlace.trim().toLowerCase(),
+  ].join("|")
+  const chartCanAutofill =
+    Boolean(draft.horoscope.birthDate.trim()) &&
+    Boolean(draft.horoscope.birthPlace.trim()) &&
+    (Boolean(draft.horoscope.birthTime.trim()) || draft.horoscope.birthTimeAccuracy === "unknown-time")
 
   useEffect(() => {
     const backendEnabled = isFirebaseConfigured()
@@ -540,6 +549,7 @@ export function BiodataBuilder() {
       const idToken = await user.getIdToken()
       const result = await generateHoroscopeChartSnapshot(idToken, draft)
       setDraft(result.draft)
+      lastChartSnapshotKeyRef.current = chartInputKey
       setChartStatus("ready")
       setChartMessage(
         result.persisted
@@ -551,6 +561,28 @@ export function BiodataBuilder() {
       setChartMessage(error instanceof Error ? error.message : "Could not prepare horoscope snapshot.")
     }
   }
+
+  useEffect(() => {
+    if (draft.horoscopeComputed && !lastChartSnapshotKeyRef.current) {
+      lastChartSnapshotKeyRef.current = chartInputKey
+    }
+  }, [chartInputKey, draft.horoscopeComputed])
+
+  useEffect(() => {
+    if (!user || !backendAvailable || chartStatus === "loading" || !chartCanAutofill) {
+      return
+    }
+
+    if (lastChartSnapshotKeyRef.current === chartInputKey) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void refreshHoroscopeSnapshot()
+    }, 700)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [backendAvailable, chartCanAutofill, chartInputKey, chartStatus, user])
 
   function handleSelectedFile(kind: ProfileAssetKind, file: File) {
     if (!isAllowedProfileAssetFile(file)) {
@@ -1041,34 +1073,6 @@ export function BiodataBuilder() {
                   </div>
                 ) : null}
                 <div className="grid gap-5 md:grid-cols-2">
-                  <FieldShell label="Nakath">
-                    <SelectField
-                      value={draft.horoscope.nakath}
-                      placeholder="Select nakath"
-                      options={nakathOptions}
-                      onChange={(value) =>
-                        setDraft((current) => ({
-                          ...current,
-                          horoscope: { ...current.horoscope, nakath: value },
-                          horoscopeComputed: null,
-                        }))
-                      }
-                    />
-                  </FieldShell>
-                  <FieldShell label="Lagna">
-                    <SelectField
-                      value={draft.horoscope.lagna}
-                      placeholder="Select lagna"
-                      options={lagnaOptions}
-                      onChange={(value) =>
-                        setDraft((current) => ({
-                          ...current,
-                          horoscope: { ...current.horoscope, lagna: value },
-                          horoscopeComputed: null,
-                        }))
-                      }
-                    />
-                  </FieldShell>
                   <FieldShell
                     label="Birth date"
                     hint="Added from the roadmap schema. This is more reliable than age alone for matching and astrology."
@@ -1141,6 +1145,29 @@ export function BiodataBuilder() {
                       }
                       className="border-white/10 bg-black/20"
                     />
+                  </FieldShell>
+                </div>
+                <div className="mt-5 grid gap-5 md:grid-cols-2">
+                  <FieldShell
+                    label="Nakath"
+                    hint="Auto-derived from birth date, time, and place. You no longer need to pick this manually."
+                  >
+                    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                      <p className="text-sm font-medium text-foreground">
+                        {horoscopeSnapshot?.nakath || draft.horoscope.nakath || "Will appear after the chart snapshot is ready"}
+                        {horoscopeSnapshot?.pada ? ` • Pada ${horoscopeSnapshot.pada}` : ""}
+                      </p>
+                    </div>
+                  </FieldShell>
+                  <FieldShell
+                    label="Lagna"
+                    hint="Computed from birth time and place. If time is unknown or too rough, this may stay pending."
+                  >
+                    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                      <p className="text-sm font-medium text-foreground">
+                        {horoscopeSnapshot?.lagna || draft.horoscope.lagna || "Needs a reliable birth time"}
+                      </p>
+                    </div>
                   </FieldShell>
                 </div>
               </SectionCard>
