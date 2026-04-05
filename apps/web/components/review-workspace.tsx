@@ -906,11 +906,17 @@ export function ReviewWorkspace() {
                           <div className="rounded-3xl border border-primary/20 bg-primary/10 p-5">
                             <div className="flex items-start justify-between gap-4">
                               <div>
-                                <p className="text-sm font-semibold text-foreground">{scorePreview.label}</p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-sm font-semibold text-foreground">{scorePreview.label}</p>
+                                  <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-foreground">
+                                    {scorePreview.confidence} confidence
+                                  </span>
+                                </div>
                                 <p className="mt-3 text-sm leading-7 text-foreground/90">{scorePreview.summary}</p>
+                                <p className="mt-3 text-xs leading-6 text-muted-foreground">{scorePreview.confidenceNote}</p>
                               </div>
                               <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-right">
-                                <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Score</p>
+                                <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Overall fit</p>
                                 <p className="mt-2 text-2xl font-semibold text-primary">{scorePreview.total}/20</p>
                               </div>
                             </div>
@@ -919,11 +925,45 @@ export function ReviewWorkspace() {
                             </p>
                           </div>
 
+                          <div className="grid gap-3 lg:grid-cols-2">
+                            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-sm font-medium text-foreground">{scorePreview.sections.traditional.label}</p>
+                                <span className="text-xs uppercase tracking-[0.2em] text-primary">
+                                  {scorePreview.sections.traditional.score}/{scorePreview.sections.traditional.max}
+                                </span>
+                              </div>
+                              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                                {scorePreview.sections.traditional.summary}
+                              </p>
+                            </div>
+
+                            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-sm font-medium text-foreground">{scorePreview.sections.practical.label}</p>
+                                <span className="text-xs uppercase tracking-[0.2em] text-primary">
+                                  {scorePreview.sections.practical.score}/{scorePreview.sections.practical.max}
+                                </span>
+                              </div>
+                              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                                {scorePreview.sections.practical.summary}
+                              </p>
+                              <p className="mt-3 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                                Lifestyle alignment {scorePreview.lifestylePercentage}%
+                              </p>
+                            </div>
+                          </div>
+
                           <div className="grid gap-3">
                             {scorePreview.factors.map((factor) => (
                               <div key={factor.key} className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
                                 <div className="flex items-center justify-between gap-3">
-                                  <p className="text-sm font-medium text-foreground">{factor.label}</p>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-sm font-medium text-foreground">{factor.label}</p>
+                                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                                      {factor.group}
+                                    </span>
+                                  </div>
                                   <span className="text-xs uppercase tracking-[0.2em] text-primary">
                                     {factor.score}/{factor.max}
                                   </span>

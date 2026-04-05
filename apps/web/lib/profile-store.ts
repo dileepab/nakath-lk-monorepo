@@ -1,7 +1,14 @@
 import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from "firebase/firestore"
 
 import { getFirebaseDb, isFirebaseConfigured } from "@/lib/firebase-client"
-import { initialProfileDraft, mergeProfileDraft, syncVerificationState, type ProfileDraft } from "@acme/core"
+import {
+  initialProfileDraft,
+  mergeProfileDraft,
+  syncVerificationState,
+  type BirthTimeAccuracy,
+  type HoroscopeComputedSnapshot,
+  type ProfileDraft,
+} from "@acme/core"
 
 type FirestoreProfileRecord = {
   displayName?: string
@@ -11,10 +18,18 @@ type FirestoreProfileRecord = {
   tob?: string
   isVerified?: boolean
   verificationStatus?: string
+  birthTimeAccuracy?: BirthTimeAccuracy
   horoscope?: {
     nakshatra?: string
     lagna?: string
   }
+  placeNormalization?: {
+    normalizedPlaceName?: string
+    latitude?: number | null
+    longitude?: number | null
+    timeZone?: string
+  }
+  horoscopeComputed?: Partial<HoroscopeComputedSnapshot> | null
   preferences?: {
     minAge?: number | null
     maxAge?: number | null
@@ -53,6 +68,30 @@ function stripPrivateContact(draft: ProfileDraft): ProfileDraft {
   }
 }
 
+function normalizeComputedSnapshot(
+  snapshot: FirestoreProfileRecord["horoscopeComputed"],
+): HoroscopeComputedSnapshot | null {
+  if (!snapshot) return null
+
+  return {
+    version: snapshot.version ?? "",
+    ayanamsa: snapshot.ayanamsa ?? "",
+    confidence: snapshot.confidence ?? "low",
+    nakath: snapshot.nakath ?? "",
+    pada: snapshot.pada ?? "",
+    rashi: snapshot.rashi ?? "",
+    lagna: snapshot.lagna ?? "",
+    moonLongitude: typeof snapshot.moonLongitude === "number" ? snapshot.moonLongitude : null,
+    place: {
+      normalizedPlaceName: snapshot.place?.normalizedPlaceName ?? "",
+      latitude: typeof snapshot.place?.latitude === "number" ? snapshot.place.latitude : null,
+      longitude: typeof snapshot.place?.longitude === "number" ? snapshot.place.longitude : null,
+      timeZone: snapshot.place?.timeZone ?? "Asia/Colombo",
+    },
+    computedAt: typeof snapshot.computedAt === "number" ? snapshot.computedAt : null,
+  }
+}
+
 function toFirestoreProfileRecord(draft: ProfileDraft, isNew: boolean) {
   const syncedDraft = stripPrivateContact(syncVerificationState(draft))
   const persistedMedia = {
@@ -76,6 +115,7 @@ function toFirestoreProfileRecord(draft: ProfileDraft, isNew: boolean) {
     dob: syncedDraft.horoscope.birthDate ? `${syncedDraft.horoscope.birthDate}T00:00:00.000Z` : null,
     pob: syncedDraft.horoscope.birthPlace,
     tob: syncedDraft.horoscope.birthTime,
+    birthTimeAccuracy: syncedDraft.horoscope.birthTimeAccuracy,
     isVerified:
       syncedDraft.verification.nicStatus === "verified" &&
       syncedDraft.verification.selfieStatus === "verified",
@@ -84,6 +124,13 @@ function toFirestoreProfileRecord(draft: ProfileDraft, isNew: boolean) {
       nakshatra: syncedDraft.horoscope.nakath,
       lagna: syncedDraft.horoscope.lagna,
     },
+    placeNormalization: {
+      normalizedPlaceName: syncedDraft.horoscope.normalizedBirthPlace,
+      latitude: syncedDraft.horoscope.birthLatitude,
+      longitude: syncedDraft.horoscope.birthLongitude,
+      timeZone: syncedDraft.horoscope.birthTimeZone,
+    },
+    horoscopeComputed: syncedDraft.horoscopeComputed,
     preferences: {
       minAge: numericOrNull(syncedDraft.preferences.ageMin),
       maxAge: numericOrNull(syncedDraft.preferences.ageMax),
@@ -121,9 +168,15 @@ function fromFirestoreProfileRecord(record: FirestoreProfileRecord | undefined) 
       birthDate: record.dob?.slice(0, 10) ?? "",
       birthPlace: record.pob ?? "",
       birthTime: record.tob ?? "",
+      birthTimeAccuracy: record.birthTimeAccuracy ?? "exact",
+      normalizedBirthPlace: record.placeNormalization?.normalizedPlaceName ?? "",
+      birthLatitude: typeof record.placeNormalization?.latitude === "number" ? record.placeNormalization.latitude : null,
+      birthLongitude: typeof record.placeNormalization?.longitude === "number" ? record.placeNormalization.longitude : null,
+      birthTimeZone: record.placeNormalization?.timeZone ?? "Asia/Colombo",
       nakath: record.horoscope?.nakshatra ?? "",
       lagna: record.horoscope?.lagna ?? "",
     },
+    horoscopeComputed: normalizeComputedSnapshot(record.horoscopeComputed),
     preferences: {
       ageMin: record.preferences?.minAge ? String(record.preferences.minAge) : "",
       ageMax: record.preferences?.maxAge ? String(record.preferences.maxAge) : "",

@@ -795,21 +795,68 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                       <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-4">
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <p className="text-sm font-semibold text-foreground">{preview?.label}</p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-semibold text-foreground">{preview?.label}</p>
+                              {preview ? (
+                                <Badge
+                                  variant="outline"
+                                  className="rounded-full border-white/10 bg-black/20 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-foreground"
+                                >
+                                  {preview.confidence} confidence
+                                </Badge>
+                              ) : null}
+                            </div>
                             <p className="mt-2 text-sm leading-6 text-foreground/85">{preview?.summary}</p>
+                            {preview ? (
+                              <p className="mt-3 text-xs leading-6 text-muted-foreground">{preview.confidenceNote}</p>
+                            ) : null}
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-right">
-                            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Score</p>
+                            <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Overall fit</p>
                             <p className="mt-2 text-2xl font-semibold text-primary">{preview?.total ?? 0}/20</p>
                           </div>
                         </div>
                       </div>
+                      {preview ? (
+                        <div className="grid gap-3 lg:grid-cols-2">
+                          <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-medium text-foreground">{preview.sections.traditional.label}</p>
+                              <span className="text-xs uppercase tracking-[0.2em] text-primary">
+                                {preview.sections.traditional.score}/{preview.sections.traditional.max}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                              {preview.sections.traditional.summary}
+                            </p>
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-medium text-foreground">{preview.sections.practical.label}</p>
+                              <span className="text-xs uppercase tracking-[0.2em] text-primary">
+                                {preview.sections.practical.score}/{preview.sections.practical.max}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                              {preview.sections.practical.summary}
+                            </p>
+                            <p className="mt-3 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                              Lifestyle alignment {preview.lifestylePercentage}%
+                            </p>
+                          </div>
+                        </div>
+                      ) : null}
                       <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">{referenceLabel}</p>
                       <div className="grid gap-3">
                         {preview?.factors.map((factor) => (
                           <div key={factor.key} className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
                             <div className="flex items-center justify-between gap-3">
-                              <p className="text-sm font-medium text-foreground">{factor.label}</p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-sm font-medium text-foreground">{factor.label}</p>
+                                <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                                  {factor.group}
+                                </span>
+                              </div>
                               <span className="text-xs uppercase tracking-[0.2em] text-primary">
                                 {factor.score}/{factor.max}
                               </span>
@@ -830,7 +877,12 @@ export function ProfileDetailPage({ profileId }: { profileId: string }) {
                     items={[
                       { label: "Birth date", value: draft.horoscope.birthDate },
                       { label: "Birth time", value: draft.horoscope.birthTime },
+                      { label: "Birth time accuracy", value: draft.horoscope.birthTimeAccuracy.replace("-", " ") },
                       { label: "Birth place", value: draft.horoscope.birthPlace },
+                      {
+                        label: "Normalized place",
+                        value: draft.horoscope.normalizedBirthPlace || "Pending normalization",
+                      },
                       { label: "Nakath / Lagna", value: `${draft.horoscope.nakath} • ${draft.horoscope.lagna}` },
                     ]}
                   />

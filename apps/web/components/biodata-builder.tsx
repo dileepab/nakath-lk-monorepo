@@ -48,10 +48,14 @@ import {
   PROFILE_DRAFT_STORAGE_KEY,
   ageFromBirthDate,
   birthDateFromAge,
+  birthTimeAccuracyOptions,
   getVerificationStatus,
+  getHoroscopeInputConfidence,
+  getHoroscopeInputSummary,
   hasUploadedAsset,
   isFullyVerified,
   mergeProfileDraft,
+  type BirthTimeAccuracy,
   type BiodataShareMode,
   type ContactVisibility,
   type PhotoVisibility,
@@ -668,6 +672,8 @@ export function BiodataBuilder() {
       previewDraft.horoscope.lagna &&
       previewDraft.horoscope.birthTime,
   )
+  const horoscopeConfidence = getHoroscopeInputConfidence(previewDraft)
+  const horoscopeSummary = getHoroscopeInputSummary(previewDraft)
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0B0B0C] text-[#F9F9F7]">
@@ -855,6 +861,7 @@ export function BiodataBuilder() {
                             ...current.horoscope,
                             birthDate: birthDateFromAge(nextAge, current.horoscope.birthDate) ?? current.horoscope.birthDate,
                           },
+                          horoscopeComputed: null,
                         }))
                       }}
                       className="border-white/10 bg-black/20"
@@ -942,6 +949,7 @@ export function BiodataBuilder() {
                         setDraft((current) => ({
                           ...current,
                           horoscope: { ...current.horoscope, nakath: value },
+                          horoscopeComputed: null,
                         }))
                       }
                     />
@@ -955,6 +963,7 @@ export function BiodataBuilder() {
                         setDraft((current) => ({
                           ...current,
                           horoscope: { ...current.horoscope, lagna: value },
+                          horoscopeComputed: null,
                         }))
                       }
                     />
@@ -976,6 +985,7 @@ export function BiodataBuilder() {
                             age: ageFromBirthDate(nextBirthDate) ?? current.basics.age,
                           },
                           horoscope: { ...current.horoscope, birthDate: nextBirthDate },
+                          horoscopeComputed: null,
                         }))
                       }}
                       className="border-white/10 bg-black/20"
@@ -988,9 +998,27 @@ export function BiodataBuilder() {
                         setDraft((current) => ({
                           ...current,
                           horoscope: { ...current.horoscope, birthTime: event.target.value },
+                          horoscopeComputed: null,
                         }))
                       }
                       className="border-white/10 bg-black/20"
+                    />
+                  </FieldShell>
+                  <FieldShell label="Birth time accuracy" hint="Use approximate or unknown when the family is not fully sure.">
+                    <SelectField
+                      value={draft.horoscope.birthTimeAccuracy}
+                      placeholder="Select time accuracy"
+                      options={birthTimeAccuracyOptions}
+                      onChange={(value) =>
+                        setDraft((current) => ({
+                          ...current,
+                          horoscope: {
+                            ...current.horoscope,
+                            birthTimeAccuracy: value as BirthTimeAccuracy,
+                          },
+                          horoscopeComputed: null,
+                        }))
+                      }
                     />
                   </FieldShell>
                   <FieldShell label="Birth place">
@@ -999,7 +1027,15 @@ export function BiodataBuilder() {
                       onChange={(event) =>
                         setDraft((current) => ({
                           ...current,
-                          horoscope: { ...current.horoscope, birthPlace: event.target.value },
+                          horoscope: {
+                            ...current.horoscope,
+                            birthPlace: event.target.value,
+                            normalizedBirthPlace: "",
+                            birthLatitude: null,
+                            birthLongitude: null,
+                            birthTimeZone: "Asia/Colombo",
+                          },
+                          horoscopeComputed: null,
                         }))
                       }
                       className="border-white/10 bg-black/20"
@@ -1706,9 +1742,14 @@ export function BiodataBuilder() {
                       <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Horoscope</p>
                       <p className="mt-2 text-sm font-medium text-foreground">{previewHoroscope}</p>
                       <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                        {horoscopeReady
-                          ? `Birth date ${previewDraft.horoscope.birthDate} and time ${previewDraft.horoscope.birthTime} are captured for Porondam context.`
-                          : "Birth details still need one more pass before Porondam scoring."}
+                        {horoscopeSummary}
+                      </p>
+                      <p className="mt-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                        {horoscopeConfidence} confidence
+                        {previewDraft.horoscope.birthTimeAccuracy
+                          ? ` • ${previewDraft.horoscope.birthTimeAccuracy.replace("-", " ")} time`
+                          : ""}
+                        {horoscopeReady ? "" : " • still improving"}
                       </p>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">

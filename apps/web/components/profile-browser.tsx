@@ -185,6 +185,11 @@ function ProfileBrowseCard({
                 <p className="mt-1 text-xs text-muted-foreground">
                   {isReferenceProfile ? "Used to score other profiles." : preview?.label}
                 </p>
+                {!isReferenceProfile && preview ? (
+                  <p className="mt-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                    Trad {preview.traditionalScore}/{preview.traditionalMax} • Practical {preview.practicalScore}/{preview.practicalMax}
+                  </p>
+                ) : null}
               </div>
             </div>
 
