@@ -551,10 +551,13 @@ export function BiodataBuilder() {
       setDraft(result.draft)
       lastChartSnapshotKeyRef.current = chartInputKey
       setChartStatus("ready")
+      const lagnaMessage = result.horoscopeComputed?.lagna
+        ? result.horoscopeComputed.lagna
+        : "Lagna pending a more reliable birth time"
       setChartMessage(
         result.persisted
-          ? `Snapshot refreshed: ${result.horoscopeComputed?.nakath || "Nakath pending"} • ${result.horoscopeComputed?.lagna || "Lagna pending"}`
-          : `Snapshot prepared locally: ${result.horoscopeComputed?.nakath || "Nakath pending"} • ${result.horoscopeComputed?.lagna || "Lagna pending"}`,
+          ? `Snapshot refreshed: ${result.horoscopeComputed?.nakath || "Nakath pending"} • ${lagnaMessage}`
+          : `Snapshot prepared locally: ${result.horoscopeComputed?.nakath || "Nakath pending"} • ${lagnaMessage}`,
       )
     } catch (error) {
       setChartStatus("error")

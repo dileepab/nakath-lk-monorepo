@@ -207,8 +207,8 @@ export function applyHoroscopeSnapshotToDraft(draft: ProfileDraft): ProfileDraft
     ...merged,
     horoscope: {
       ...merged.horoscope,
-      nakath: snapshot?.nakath || merged.horoscope.nakath,
-      lagna: snapshot?.lagna || merged.horoscope.lagna,
+      nakath: snapshot?.nakath ?? "",
+      lagna: snapshot?.lagna ?? "",
       normalizedBirthPlace: normalizedPlace.normalizedPlaceName,
       birthLatitude: normalizedPlace.latitude,
       birthLongitude: normalizedPlace.longitude,
